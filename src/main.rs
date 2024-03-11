@@ -1,6 +1,6 @@
 use std::env;
 
-use not_git::{cat, init};
+use not_git::{cat_file, init};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -13,7 +13,7 @@ fn main() {
     let command = args[1].clone();
     let result = match command.as_str() {
         "init" => init::create_directories(),
-        "cat-file" => cat::file(args[2..].to_vec()),
+        "cat-file" => cat_file::file(args[2..].to_vec()),
         _ => Err(std::io::Error::new(
             std::io::ErrorKind::Other,
             format!("Unknown command {}", command),
