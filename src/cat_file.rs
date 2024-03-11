@@ -13,13 +13,9 @@ struct CatFileConfig {
 
 impl Into<PathBuf> for CatFileConfig {
     fn into(self) -> PathBuf {
-        let mut path = PathBuf::with_capacity(4);
-        path.push(".git");
-        path.push("objects");
-        path.push(self.dir);
-        path.push(self.file_name);
-
-        path
+        [".git", ".objects", &self.dir, &self.file_name]
+            .iter()
+            .collect()
     }
 }
 
