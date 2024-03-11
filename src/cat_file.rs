@@ -13,7 +13,7 @@ struct CatFileConfig {
 
 impl Into<PathBuf> for CatFileConfig {
     fn into(self) -> PathBuf {
-        [".git", ".objects", &self.dir, &self.file_name]
+        [".git", "objects", &self.dir, &self.file_name]
             .iter()
             .collect()
     }
