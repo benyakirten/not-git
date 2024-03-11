@@ -22,6 +22,7 @@ impl Into<PathBuf> for CatFileConfig {
 pub fn file(args: Vec<String>) -> Result<(), io::Error> {
     let config = parse_cat_file_cmds(args)?;
     let contents = decode_file(config)?;
+
     print!("{}", contents);
 
     Ok(())
@@ -37,7 +38,10 @@ fn decode_file(config: CatFileConfig) -> Result<String, io::Error> {
     let mut decoder = ZlibDecoder::new(encoded_content.as_slice());
     decoder.read_to_string(&mut decoded_content)?;
 
-    Ok(decoded_content)
+    match decoded_content.split("\x00").last() {
+        Some(content) => Ok(content.to_string()),
+        None => Ok(decoded_content),
+    }
 }
 
 fn parse_cat_file_cmds(args: Vec<String>) -> Result<CatFileConfig, io::Error> {
