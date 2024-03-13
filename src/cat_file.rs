@@ -1,10 +1,9 @@
-use std::{
-    fs,
-    io::{self, Read},
-    path::PathBuf,
-};
+use std::io::Read;
+use std::path::PathBuf;
 
 use flate2::bufread::ZlibDecoder;
+
+use crate::utils::{self, print_string};
 
 struct CatFileConfig {
     dir: String,
@@ -19,37 +18,33 @@ impl Into<PathBuf> for CatFileConfig {
     }
 }
 
-pub fn file(args: Vec<String>) -> Result<(), io::Error> {
+pub fn cat(args: Vec<String>) -> Result<(), anyhow::Error> {
     let config = parse_cat_file_cmds(args)?;
     let contents = decode_file(config)?;
 
-    print!("{}", contents);
+    print_string(&contents);
 
     Ok(())
 }
 
-fn decode_file(config: CatFileConfig) -> Result<String, io::Error> {
+fn decode_file(config: CatFileConfig) -> Result<String, anyhow::Error> {
     let path: PathBuf = config.into();
-    let mut file = fs::File::open(path)?;
-    let mut encoded_content = vec![];
-    file.read_to_end(&mut encoded_content)?;
+    let encoded_content = utils::read_from_file(path)?;
 
     let mut decoded_content = String::new();
     let mut decoder = ZlibDecoder::new(encoded_content.as_slice());
     decoder.read_to_string(&mut decoded_content)?;
 
+    // Git begins the file with blob <size>\x00, so we need to remove that
     match decoded_content.split("\x00").last() {
         Some(content) => Ok(content.to_string()),
         None => Ok(decoded_content),
     }
 }
 
-fn parse_cat_file_cmds(args: Vec<String>) -> Result<CatFileConfig, io::Error> {
+fn parse_cat_file_cmds(args: Vec<String>) -> Result<CatFileConfig, anyhow::Error> {
     if args.len() == 0 {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            "Usage: cat-file <hash>",
-        ));
+        return Err(anyhow::anyhow!("Usage: cat-file <hash>"));
     }
 
     let full_hash = get_full_hash(args)?;
@@ -59,22 +54,16 @@ fn parse_cat_file_cmds(args: Vec<String>) -> Result<CatFileConfig, io::Error> {
     })
 }
 
-fn get_full_hash(args: Vec<String>) -> Result<String, io::Error> {
+fn get_full_hash(args: Vec<String>) -> Result<String, anyhow::Error> {
     let initial_index;
     if args[0] == "-p" {
         initial_index = 1;
 
         if args.len() < 2 {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Usage: cat-file -p <hash>",
-            ));
+            return Err(anyhow::anyhow!("Usage: cat-file -p <hash>",));
         }
     } else {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            "-p flag must be provided",
-        ));
+        return Err(anyhow::anyhow!("-p flag must be provided"));
     }
 
     let hash = args[initial_index].as_str();

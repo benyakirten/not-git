@@ -1,6 +1,6 @@
 use std::fs;
 
-pub fn create_directories() -> Result<(), std::io::Error> {
+pub fn create_directories() -> Result<(), anyhow::Error> {
     println!("Initialized not-git directory.");
     fs::create_dir(".not-git")?;
     fs::create_dir(".not-git/objects")?;
