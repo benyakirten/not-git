@@ -132,24 +132,13 @@ fn parse_until_next_file(body: Vec<u8>) -> Result<(TreeFile, Vec<u8>), anyhow::E
         .ok_or_else(|| anyhow::anyhow!("Invalid tree object: Unable to find mode and file name"))?;
     let file_name = file_name.replace('\0', "");
 
-    let mut digits_acc: Vec<char> = vec![];
-    let mut final_index = 0;
-    for (i, byte) in rest.iter().enumerate() {
-        if digits_acc.len() == 6 && byte.is_ascii_whitespace() {
-            final_index = i - 6;
-            break;
-        }
-
-        if byte.is_ascii_digit() {
-            digits_acc.push(*byte as char);
-        } else {
-            digits_acc.clear()
-        }
+    if rest.len() < 20 {
+        return Err(anyhow::anyhow!("Invalid tree object: Unable to find sha"));
     }
 
-    // If the final_index is 0, it indicates we've reached EOF
-    let (sha_bytes, rest) = if final_index != 0 {
-        rest.split_at(final_index)
+    // Sha will always be 20 bytes long - after that the next entry begins.
+    let (sha_bytes, rest) = if rest.len() > 20 {
+        rest.split_at(20)
     } else {
         let empty_array: &[u8] = &[];
         (rest.as_slice(), empty_array)
