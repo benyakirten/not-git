@@ -10,19 +10,26 @@ struct HashObjectConfig {
     file: String,
 }
 
-pub fn hash(args: &[String]) -> Result<(), anyhow::Error> {
+pub fn write_and_output(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_config(args)?;
-    let mut file_contents = read_from_file(config.file)?;
+    let mut file_contents = read_from_file(config.file.as_str())?;
+
+    let hash = hash_and_write(&mut file_contents)?;
+    print!("{}", &hash.full_hash());
+
+    Ok(())
+}
+
+pub fn hash_and_write(file_contents: &mut Vec<u8>) -> Result<FileHash, anyhow::Error> {
     let mut header = create_header(&file_contents);
 
-    header.append(&mut file_contents);
+    header.append(file_contents);
     let hash = hash_file(&header)?;
     let encoded_contents = encode_file_contents(header)?;
 
     write_encoded_object(&hash, encoded_contents)?;
-    print!("{}", &hash.full_hash());
 
-    Ok(())
+    Ok(hash)
 }
 
 fn create_header(file: &Vec<u8>) -> Vec<u8> {
