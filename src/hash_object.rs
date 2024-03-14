@@ -4,28 +4,13 @@ use flate2::{write::ZlibEncoder, Compression};
 use hex::ToHex;
 use sha1::{Digest, Sha1};
 
-use crate::utils::read_from_file;
+use crate::{file_hash::FileHash, utils::read_from_file};
 
 struct HashObjectConfig {
     file: String,
 }
 
-struct FileHash {
-    prefix: String,
-    hash: String,
-}
-
-impl FileHash {
-    fn new(prefix: String, hash: String) -> Self {
-        FileHash { prefix, hash }
-    }
-
-    fn full_hash(&self) -> String {
-        self.prefix.to_string() + &self.hash.to_string()
-    }
-}
-
-pub fn hash(args: Vec<String>) -> Result<(), anyhow::Error> {
+pub fn hash(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_config(args)?;
     let mut file_contents = read_from_file(config.file)?;
     let mut header = create_header(&file_contents);
@@ -78,7 +63,7 @@ fn encode_file_contents(file_contents: Vec<u8>) -> Result<Vec<u8>, anyhow::Error
     encoder.finish().map_err(|e| anyhow::anyhow!(e))
 }
 
-fn parse_config(args: Vec<String>) -> Result<HashObjectConfig, anyhow::Error> {
+fn parse_config(args: &[String]) -> Result<HashObjectConfig, anyhow::Error> {
     if args.len() < 2 || args[0] != "-w" {
         return Err(anyhow::anyhow!("Usage: hash-object -w <file>"));
     }

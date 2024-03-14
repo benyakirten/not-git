@@ -1,6 +1,6 @@
 use std::env;
 
-use not_git::{cat_file, hash_object, init};
+use not_git::{cat_file, hash_object, init, ls_tree};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -13,8 +13,9 @@ fn main() {
     let command = args[1].to_string();
     let result = match command.as_str() {
         "init" => init::create_directories(),
-        "cat-file" => cat_file::cat(args[2..].to_vec()),
-        "hash-object" => hash_object::hash(args[2..].to_vec()),
+        "cat-file" => cat_file::cat(&args[2..]),
+        "hash-object" => hash_object::hash(&args[2..]),
+        "ls-tree" => ls_tree::list_tree(&args[2..]),
         _ => Err(anyhow::anyhow!(format!("Unknown command {}", command))),
     };
 
