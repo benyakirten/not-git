@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use flate2::bufread::ZlibDecoder;
 
-use crate::utils::{self, print_string};
+use crate::utils;
 
 struct CatFileConfig {
     dir: String,
@@ -22,7 +22,7 @@ pub fn cat(args: Vec<String>) -> Result<(), anyhow::Error> {
     let config = parse_cat_file_cmds(args)?;
     let contents = decode_file(config)?;
 
-    print_string(&contents);
+    print!("{}", &contents);
 
     Ok(())
 }
@@ -36,6 +36,7 @@ fn decode_file(config: CatFileConfig) -> Result<String, anyhow::Error> {
     decoder.read_to_string(&mut decoded_content)?;
 
     // Git begins the file with blob <size>\x00, so we need to remove that
+
     match decoded_content.split("\x00").last() {
         Some(content) => Ok(content.to_string()),
         None => Ok(decoded_content),

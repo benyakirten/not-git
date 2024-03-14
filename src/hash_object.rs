@@ -4,7 +4,7 @@ use flate2::{write::ZlibEncoder, Compression};
 use hex::ToHex;
 use sha1::{Digest, Sha1};
 
-use crate::utils::{print_string, read_from_file};
+use crate::utils::read_from_file;
 
 struct HashObjectConfig {
     file: String,
@@ -27,20 +27,26 @@ impl FileHash {
 
 pub fn hash(args: Vec<String>) -> Result<(), anyhow::Error> {
     let config = parse_config(args)?;
-    let file_contents = read_from_file(config.file)?;
+    let mut file_contents = read_from_file(config.file)?;
+    let mut header = create_header(&file_contents);
 
-    let hash = hash_file(&file_contents)?;
-    let encoded_contents = encode_file_contents(&file_contents);
+    header.append(&mut file_contents);
+    let hash = hash_file(&header)?;
+    let encoded_contents = encode_file_contents(header)?;
 
     write_encoded_object(&hash, encoded_contents)?;
-    print_string(&hash.full_hash());
+    print!("{}", &hash.full_hash());
 
     Ok(())
 }
 
+fn create_header(file: &Vec<u8>) -> Vec<u8> {
+    let header = format!("blob {}\0", file.len());
+    header.as_bytes().to_vec()
+}
+
 fn write_encoded_object(hash: &FileHash, encoded_contents: Vec<u8>) -> Result<(), anyhow::Error> {
     let path: PathBuf = [".git", "objects", &hash.prefix].iter().collect();
-
     if !path.exists() {
         fs::create_dir(&path)?;
     }
@@ -66,10 +72,10 @@ fn hash_file(file: &Vec<u8>) -> Result<FileHash, anyhow::Error> {
     ))
 }
 
-fn encode_file_contents(file: &Vec<u8>) -> Vec<u8> {
+fn encode_file_contents(file_contents: Vec<u8>) -> Result<Vec<u8>, anyhow::Error> {
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-    encoder.write_all(file).unwrap();
-    encoder.finish().unwrap()
+    encoder.write_all(&file_contents)?;
+    encoder.finish().map_err(|e| anyhow::anyhow!(e))
 }
 
 fn parse_config(args: Vec<String>) -> Result<HashObjectConfig, anyhow::Error> {
