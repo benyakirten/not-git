@@ -135,7 +135,7 @@ fn parse_until_next_file(body: Vec<u8>) -> Result<(TreeFile, Vec<u8>), anyhow::E
     let mut digits_acc: Vec<char> = vec![];
     let mut final_index = 0;
     for (i, byte) in rest.iter().enumerate() {
-        if digits_acc.len() == 6 {
+        if digits_acc.len() == 6 && byte.is_ascii_whitespace() {
             final_index = i - 6;
             break;
         }
