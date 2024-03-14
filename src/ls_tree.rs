@@ -14,6 +14,16 @@ pub fn list_tree(args: &[String]) -> Result<(), anyhow::Error> {
 }
 
 fn get_file_names(decoded_content: &str) -> Vec<String> {
+    // https://stackoverflow.com/questions/14790681/what-is-the-internal-format-of-a-git-tree-object
+    // https://git-scm.com/book/en/v2/Git-Internals-Git-Objects
+    // decoded_content might look like:
+    // tree 221\0100644 cat_file.rs\07��fh�M�6:c\u{8}����Ę�.100644 hash_object.rs\0y�Jϭj�N�[�Gdi�3�=Z�100644 init.rs\0ڜ��-u[�G{U�?\u{18}m�R�\u{4}�100644 lib.rs\0\u{f}����LmiP��Q���\0\u{1a}�100644 main.rs\0��X\u{b} y�\u{9d}��3V��g�\u{1c}��100644 utils.rs\0���֎��f#f.�$Ty'@�\u{6}�
+    // If you look right before main.rs, the sha contains a nulll byte \0, which makes splitting by null bytes
+    // not always have the file name at the end of the split. This is a workaround that might not be fullproof
+    // On the final version - we should parse each line into a struct
+    // Each line is in the format {numbers-mode} {file_name}\n{sha}
+    // Note that there's no separator beftween the sha and the numbers for the mode corresponding to the next line
+    // Therefore we may want to split for the first two whitespaces after the header
     decoded_content
         .split("\0")
         .skip(1)
