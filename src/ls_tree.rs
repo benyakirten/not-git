@@ -28,6 +28,7 @@ pub enum FileType {
     Tree,
     Executable,
     Symlink,
+    Commit,
 }
 
 impl FileType {
@@ -50,6 +51,7 @@ impl FileType {
             FileType::Tree => "040000",
             FileType::Executable => "100755",
             FileType::Symlink => "120000",
+            FileType::Commit => "160000",
         }
     }
 
@@ -59,6 +61,7 @@ impl FileType {
             FileType::Tree => "tree".to_string(),
             FileType::Executable => "executable".to_string(),
             FileType::Symlink => "symlink".to_string(),
+            FileType::Commit => "commit".to_string(),
         }
     }
 
