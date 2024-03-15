@@ -28,7 +28,7 @@ fn decode_file(config: CatFileConfig) -> Result<String, anyhow::Error> {
     let decoded_content = utils::decode_file(config.into())?;
     let decoded_string = String::from_utf8(decoded_content)?;
 
-    // Git begins the file with blob <size>\x00, so we need to remove that
+    // Git begins the file with {file_type} <size>\x00, so we need to remove it.
     match decoded_string.split("\x00").last() {
         Some(content) => Ok(content.to_string()),
         None => Ok(decoded_string),

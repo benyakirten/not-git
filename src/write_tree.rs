@@ -26,14 +26,19 @@ struct TreeFile {
     sha: String,
 }
 
-pub fn write(_: &[String]) -> Result<(), anyhow::Error> {
+pub fn write_tree(_: &[String]) -> Result<(), anyhow::Error> {
+    let sha = write(&[])?;
+    println!("{}", sha);
+
+    Ok(())
+}
+
+pub fn write(_: &[String]) -> Result<String, anyhow::Error> {
     let path = env::current_dir()?;
     let mut root_tree = build_tree_from_path(path)?;
     let sha = hash_tree(&mut root_tree)?;
 
-    println!("{}", sha);
-
-    Ok(())
+    Ok(sha)
 }
 
 fn build_tree_from_path(path: PathBuf) -> Result<Vec<TreeFile>, anyhow::Error> {

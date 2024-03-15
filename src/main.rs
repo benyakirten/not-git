@@ -1,6 +1,6 @@
 use std::env;
 
-use not_git::{cat_file, hash_object, init, ls_tree, write_tree};
+use not_git::{cat_file, commit_tree, hash_object, init, ls_tree, write_tree};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -16,7 +16,8 @@ fn main() {
         "cat-file" => cat_file::cat(&args[2..]),
         "hash-object" => hash_object::write_and_output(&args[2..]),
         "ls-tree" => ls_tree::list_tree(&args[2..]),
-        "write-tree" => write_tree::write(&args[2..]),
+        "write-tree" => write_tree::write_tree(&args[2..]),
+        "commit-tree" => commit_tree::commit_tree(&args[2..]),
         _ => Err(anyhow::anyhow!(format!("Unknown command {}", command))),
     };
 
