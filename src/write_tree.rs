@@ -28,7 +28,11 @@ struct TreeFile {
 
 pub fn write(_: &[String]) -> Result<(), anyhow::Error> {
     let path = env::current_dir()?;
-    build_tree_from_path(path)?;
+    let mut root_tree = build_tree_from_path(path)?;
+    let sha = hash_tree(&mut root_tree)?;
+
+    println!("{}", sha);
+
     Ok(())
 }
 
