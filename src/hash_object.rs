@@ -4,30 +4,39 @@ use flate2::{write::ZlibEncoder, Compression};
 use hex::ToHex;
 use sha1::{Digest, Sha1};
 
-use crate::{file_hash::FileHash, utils::read_from_file};
+use crate::{
+    file_hash::FileHash,
+    ls_tree::FileType,
+    utils::{create_header, read_from_file},
+};
 
 struct HashObjectConfig {
     file: String,
 }
 
-pub fn hash(args: &[String]) -> Result<(), anyhow::Error> {
+pub fn write_and_output(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_config(args)?;
-    let mut file_contents = read_from_file(config.file)?;
-    let mut header = create_header(&file_contents);
+    let mut file_contents = read_from_file(config.file.as_str())?;
 
-    header.append(&mut file_contents);
-    let hash = hash_file(&header)?;
-    let encoded_contents = encode_file_contents(header)?;
-
-    write_encoded_object(&hash, encoded_contents)?;
+    let hash = hash_and_write(&FileType::Blob, &mut file_contents)?;
     print!("{}", &hash.full_hash());
 
     Ok(())
 }
 
-fn create_header(file: &Vec<u8>) -> Vec<u8> {
-    let header = format!("blob {}\0", file.len());
-    header.as_bytes().to_vec()
+pub fn hash_and_write(
+    file_type: &FileType,
+    file_contents: &mut Vec<u8>,
+) -> Result<FileHash, anyhow::Error> {
+    let mut header = create_header(file_type, &file_contents);
+
+    header.append(file_contents);
+    let hash = hash_file(&header)?;
+    let encoded_contents = encode_file_contents(header)?;
+
+    write_encoded_object(&hash, encoded_contents)?;
+
+    Ok(hash)
 }
 
 fn write_encoded_object(hash: &FileHash, encoded_contents: Vec<u8>) -> Result<(), anyhow::Error> {

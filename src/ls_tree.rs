@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{os::unix::fs::PermissionsExt, path::PathBuf};
 
 use crate::{file_hash::FileHash, utils};
 
@@ -7,7 +7,7 @@ struct LsTreeConfig {
     flag: LsTreeFlag,
 }
 
-enum LsTreeFlag {
+pub enum LsTreeFlag {
     NameOnly,
     Long,
 }
@@ -22,8 +22,8 @@ impl LsTreeFlag {
     }
 }
 
-#[derive(Debug)]
-enum FileType {
+#[derive(Debug, Clone)]
+pub enum FileType {
     Blob,
     Tree,
     Executable,
@@ -31,7 +31,7 @@ enum FileType {
 }
 
 impl FileType {
-    fn from_mode(mode: &str) -> Result<FileType, anyhow::Error> {
+    pub fn from_mode(mode: &str) -> Result<FileType, anyhow::Error> {
         match mode {
             "100644" => Ok(FileType::Blob),
             "040000" => Ok(FileType::Tree),
@@ -44,7 +44,7 @@ impl FileType {
         }
     }
 
-    fn to_number_string(&self) -> &str {
+    pub fn to_number_string(&self) -> &str {
         match self {
             FileType::Blob => "100644",
             FileType::Tree => "040000",
@@ -53,12 +53,27 @@ impl FileType {
         }
     }
 
-    fn to_readable_string(&self) -> String {
+    pub fn to_readable_string(&self) -> String {
         match self {
             FileType::Blob => "blob".to_string(),
             FileType::Tree => "tree".to_string(),
             FileType::Executable => "executable".to_string(),
             FileType::Symlink => "symlink".to_string(),
+        }
+    }
+
+    pub fn from_entry(entry: &std::fs::DirEntry) -> Result<FileType, anyhow::Error> {
+        let metadata = entry.metadata()?;
+        if metadata.is_file() {
+            Ok(FileType::Blob)
+        } else if metadata.is_dir() {
+            Ok(FileType::Tree)
+        } else if metadata.permissions().mode() & 0o111 != 0 {
+            Ok(FileType::Executable)
+        } else if metadata.file_type().is_symlink() {
+            Ok(FileType::Symlink)
+        } else {
+            Err(anyhow::anyhow!("Unable to determine file type"))
         }
     }
 }
