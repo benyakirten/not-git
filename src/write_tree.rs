@@ -39,6 +39,10 @@ fn build_tree_from_path(path: PathBuf) -> Result<Vec<TreeFile>, anyhow::Error> {
             })?
             .to_string();
 
+        if file_name == "target" || file_name == ".git" {
+            continue;
+        }
+
         let tree_file_type = match file_type {
             FileType::Tree => match build_tree_from_path(entry.path()) {
                 Ok(tree_file) => TreeFileType::Tree(tree_file),
