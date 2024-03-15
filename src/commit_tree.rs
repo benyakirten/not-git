@@ -15,7 +15,7 @@ pub fn commit_tree(args: &[String]) -> Result<(), anyhow::Error> {
     header.append(&mut contents);
     let hash = hash_object::hash_and_write(&FileType::Commit, &mut header)?;
 
-    print!("{}", &hash.full_hash());
+    println!("{}", &hash.full_hash());
     Ok(())
 }
 
@@ -59,12 +59,12 @@ fn parse_commit_tree_config(args: &[String]) -> Result<CommitTreeConfig, anyhow:
     }
 
     let parent_hash = get_parent_hash(args)?;
-    let message = get_flag_arg("-m", args);
+    let message = get_flag_arg("-m", args)?;
     let tree_hash = get_tree_hash(args)?;
 
     Ok(CommitTreeConfig {
         tree_hash,
-        message: message?,
+        message: message,
         parent_hash,
     })
 }
@@ -112,7 +112,7 @@ fn get_flag_arg_optional(flag: &str, args: &[String]) -> Result<Option<String>, 
 
     if args.len() < flag_index.unwrap() + 2 {
         return Err(anyhow::anyhow!(
-            "Usage: commit-tree <tree-hash> -p <parent-hash> <message>"
+            "Usage: commit-tree <tree-hash> -p <parent-hash> -m <message>"
         ));
     }
 
