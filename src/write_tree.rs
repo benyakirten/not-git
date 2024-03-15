@@ -39,7 +39,7 @@ fn build_tree_from_path(path: PathBuf) -> Result<Vec<TreeFile>, anyhow::Error> {
             })?
             .to_string();
 
-        if file_name == "target" || file_name == ".git" {
+        if file_name == "target" || file_name == ".git" || file_name == "not-git" {
             continue;
         }
 
@@ -53,9 +53,9 @@ fn build_tree_from_path(path: PathBuf) -> Result<Vec<TreeFile>, anyhow::Error> {
 
         let sha = match tree_file_type {
             TreeFileType::Error(_) => "".to_string(),
-            TreeFileType::Other(_, path) => {
+            TreeFileType::Other(file_type, path) => {
                 let mut file_contents = utils::read_from_file(path)?;
-                let hash = hash_object::hash_and_write(&mut file_contents)?;
+                let hash = hash_object::hash_and_write(&file_type, &mut file_contents)?;
                 hash.full_hash()
             }
             TreeFileType::Tree(mut tree_files) => hash_tree(&mut tree_files)?,
@@ -80,10 +80,43 @@ fn hash_tree(tree_files: &mut Vec<TreeFile>) -> Result<String, anyhow::Error> {
         let file_name = &tree_file.file_name;
         let sha = &tree_file.sha;
 
-        let line = format!("{} {}\0{}", file_type, sha, file_name);
+        if sha.len() != 40 {
+            return Err(anyhow::anyhow!(
+                "Invalid tree object: sha must be exactly 40 characters long"
+            ));
+        }
+
+        let mut sha_bytes: Vec<u8> = sha
+            .as_bytes()
+            .chunks(2)
+            .filter_map(|chunk| {
+                let hex = std::str::from_utf8(chunk);
+                if hex.is_err() {
+                    return None;
+                }
+
+                let byte = u8::from_str_radix(hex.unwrap(), 16);
+                if byte.is_err() {
+                    return None;
+                }
+
+                Some(byte.unwrap())
+            })
+            .collect();
+
+        if sha_bytes.len() != 20 {
+            return Err(anyhow::anyhow!(
+                "Invalid tree object: sha hex cannot be parsed correctly"
+            ));
+        }
+
+        let line = format!("{} {}", file_type, file_name);
         tree_content.append(&mut line.as_bytes().to_vec());
+
+        tree_content.push(0);
+        tree_content.append(&mut sha_bytes);
     }
 
-    let hash = hash_object::hash_and_write(&mut tree_content)?;
+    let hash = hash_object::hash_and_write(&FileType::Tree, &mut tree_content)?;
     Ok(hash.full_hash())
 }
