@@ -40,7 +40,7 @@ pub fn hash_and_write(
 }
 
 fn write_encoded_object(hash: &FileHash, encoded_contents: Vec<u8>) -> Result<(), anyhow::Error> {
-    let path: PathBuf = ["not-git", "objects", &hash.prefix].iter().collect();
+    let path: PathBuf = [".git", "objects", &hash.prefix].iter().collect();
     if !path.exists() {
         fs::create_dir(&path)?;
     }
