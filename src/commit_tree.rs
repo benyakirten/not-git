@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use crate::{file_hash::FileHash, hash_object, ls_tree::FileType};
 
 struct CommitTreeConfig {
@@ -9,7 +11,7 @@ struct CommitTreeConfig {
 
 pub fn commit_tree(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_commit_tree_config(args)?;
-    let mut contents = create_file_contents(config);
+    let mut contents = create_file_contents(config)?;
     let mut header = get_commit_header(&contents);
 
     header.append(&mut contents);
@@ -19,33 +21,26 @@ pub fn commit_tree(args: &[String]) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-fn create_file_contents(config: CommitTreeConfig) -> Vec<u8> {
-    let mut contents: Vec<u8> = Vec::new();
-    let mut tree_hash = format!("tree {}\n", config.tree_hash.full_hash())
-        .as_bytes()
-        .to_vec();
-    contents.append(&mut tree_hash);
-    if config.parent_hash.is_some() {
-        let mut parent_hash = format!("parent {}\n", config.parent_hash.unwrap().full_hash())
-            .as_bytes()
-            .to_vec();
-        contents.append(&mut parent_hash);
+fn create_file_contents(config: CommitTreeConfig) -> Result<Vec<u8>, anyhow::Error> {
+    let mut contents = Vec::new();
+    writeln!(&mut contents, "tree {}", config.tree_hash.full_hash())?;
+
+    if let Some(parent_hash) = config.parent_hash {
+        writeln!(&mut contents, "parent {}", parent_hash.full_hash())?;
     }
 
-    let mut author = format!("author Ben Horowitz >benyakir.horowitz@gmail.com>\n")
-        .as_bytes()
-        .to_vec();
-    contents.append(&mut author);
-
-    let mut committer = format!("committer Ben Horowitz <benyakir.horowitz@gmail.com>\n")
-        .as_bytes()
-        .to_vec();
-    contents.append(&mut committer);
-
-    let mut message = format!("{}\n", config.message).as_bytes().to_vec();
-    contents.append(&mut message);
-
-    contents
+    writeln!(
+        &mut contents,
+        "author {}",
+        "author Ben Horowitz >benyakir.horowitz@gmail.com>"
+    )?;
+    writeln!(
+        &mut contents,
+        "committer {}",
+        "committer Ben Horowitz <benyakir.horowitz@gmail.com>"
+    )?;
+    writeln!(&mut contents, "{}", config.message)?;
+    Ok(contents)
 }
 
 fn get_commit_header(contents: &[u8]) -> Vec<u8> {
