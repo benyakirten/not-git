@@ -175,7 +175,7 @@ fn parse_until_next_file(body: Vec<u8>) -> Result<(TreeFile, Vec<u8>), anyhow::E
 }
 
 fn decode_file(config: &FileHash) -> Result<Vec<u8>, anyhow::Error> {
-    let path = [".git", "objects", &config.prefix, &config.hash]
+    let path = ["not-git", "objects", &config.prefix, &config.hash]
         .iter()
         .collect::<PathBuf>();
 
