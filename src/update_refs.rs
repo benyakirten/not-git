@@ -29,8 +29,9 @@ pub fn parse_update_refs_config(args: &[String]) -> Result<UpdateRefsConfig, any
         return Err(anyhow::anyhow!("Usage: update-refs <ref> <hash>"));
     }
 
-    let path = ["not-git", "refs", "heads", &args[1]].iter().collect();
-    let commit_hash = FileHash::from_sha(args[2].clone())?;
+    // TODO: Make sure this works for Windows.
+    let path = ["not-git", "refs", "heads", &args[0]].iter().collect();
+    let commit_hash = FileHash::from_sha(args[1].to_string())?;
 
     Ok(UpdateRefsConfig { commit_hash, path })
 }

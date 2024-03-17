@@ -7,12 +7,13 @@ struct InitConfig {
 pub fn create_directories(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_options(args);
 
-    fs::create_dir(".git")?;
-    fs::create_dir(".git/objects")?;
-    fs::create_dir(".git/refs")?;
-    fs::create_dir(".git/refs/heads")?;
+    // TODO - Check for already existing git directory/partially initialized git directory
+    fs::create_dir("not-git")?;
+    fs::create_dir("not-git/objects")?;
+    fs::create_dir("not-git/refs")?;
+    fs::create_dir("not-git/refs/heads")?;
     fs::write(
-        ".git/HEAD",
+        "not-git/HEAD",
         format!("ref: refs/heads/{}\n", config.commit_name),
     )?;
 
