@@ -15,7 +15,7 @@ pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
 pub fn clone(config: CloneConfig) -> Result<(), anyhow::Error> {
     // https://www.git-scm.com/docs/http-protocol
     let client = Client::new();
-    let lines = request_and_validate(
+    let lines = discover_references(
         client,
         &format!("{}/info/refs", config.url),
         "git-upload-pack",
@@ -24,7 +24,7 @@ pub fn clone(config: CloneConfig) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-fn request_and_validate(
+fn discover_references(
     client: Client,
     url: &str,
     service_name: &str,
@@ -55,27 +55,27 @@ fn request_and_validate(
     }
 
     let text = resp.text()?;
+    let first_chars_err = Err(anyhow::anyhow!(
+        "Invalid packet format: first five bytes must match the pattern [0-9a-z]#"
+    ));
+
     let mut first_chars = text[..5].chars();
     for _ in 0..4 {
         let character = first_chars.next();
         if character.is_none() {
-            return Err(anyhow::anyhow!(
-                "Invalid packet format: first five bytes must match the pattern [0-9a-z]#"
-            ));
+            return first_chars_err;
         }
+
         let character = character.unwrap();
+
         if !character.is_numeric() && !character.is_ascii_lowercase() {
-            return Err(anyhow::anyhow!(
-                "Invalid packet format: first five bytes must match the pattern [0-9a-z]#"
-            ));
+            return first_chars_err;
         }
     }
 
     let pound_char = first_chars.next();
     if pound_char != Some('#') {
-        return Err(anyhow::anyhow!(
-            "Invalid packet format: first five bytes must match the pattern [0-9a-z]#"
-        ));
+        return first_chars_err;
     }
 
     if !text.ends_with("0000") {
