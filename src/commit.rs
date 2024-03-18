@@ -18,6 +18,7 @@ pub fn commit_command(args: &[String]) -> Result<(), anyhow::Error> {
     commit(config)?;
 
     // TODO: Add proper output message.
+    // I believe this has to do with packfiles
     // Output might look like:
     // 2 files changed, 9 insertions(+)
     //  create mode 100644 src/commit.rs

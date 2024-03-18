@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::utils;
+use crate::{ls_tree, utils};
 
 pub struct CatFileConfig {
     pub dir: String,
@@ -26,12 +26,16 @@ pub fn cat(args: &[String]) -> Result<(), anyhow::Error> {
 
 pub fn decode_file(config: CatFileConfig) -> Result<String, anyhow::Error> {
     let decoded_content = utils::decode_file(config.into())?;
-    let decoded_string = String::from_utf8(decoded_content)?;
+    let decoded_string = String::from_utf8_lossy(&decoded_content);
 
-    // Git begins the file with {file_type} <size>\x00, so we need to remove it.
+    // Git begins the file with {file_type} <size>\0, so we need to remove it.
+    if decoded_string.starts_with("tree") {
+        return ls_tree::stringify_list_tree(decoded_content, ls_tree::LsTreeFlag::Long);
+    }
+
     match decoded_string.split("\x00").last() {
         Some(content) => Ok(content.to_string()),
-        None => Ok(decoded_string),
+        None => Ok(decoded_string.to_string()),
     }
 }
 
