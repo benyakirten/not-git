@@ -55,15 +55,24 @@ fn request_and_validate(
     }
 
     let text = resp.text()?;
-    for (i, character) in text[..5].chars().enumerate() {
-        if character.is_numeric() || character.is_ascii_lowercase() {
-            continue;
+    let mut first_chars = text[..5].chars();
+    for _ in 0..4 {
+        let character = first_chars.next();
+        if character.is_none() {
+            return Err(anyhow::anyhow!(
+                "Invalid packet format: first five bytes must match the pattern [0-9a-z]#"
+            ));
         }
-
-        if i == 5 && character == '#' {
-            continue;
+        let character = character.unwrap();
+        if !character.is_numeric() && !character.is_ascii_lowercase() {
+            return Err(anyhow::anyhow!(
+                "Invalid packet format: first five bytes must match the pattern [0-9a-z]#"
+            ));
         }
+    }
 
+    let pound_char = first_chars.next();
+    if pound_char != Some('#') {
         return Err(anyhow::anyhow!(
             "Invalid packet format: first five bytes must match the pattern [0-9a-z]#"
         ));
