@@ -14,10 +14,10 @@ fn main() {
     let result = match command.as_str() {
         "init" => init::create_directories(&args[2..]),
         "cat-file" => cat_file::cat(&args[2..]),
-        "hash-object" => hash_object::write_and_output(&args[2..]),
+        "hash-object" => hash_object::hash_object_command(&args[2..]),
         "ls-tree" => ls_tree::list_tree(&args[2..]),
         "write-tree" => write_tree::write_tree(&args[2..]),
-        "commit-tree" => commit_tree::create_commit_tree(&args[2..]),
+        "commit-tree" => commit_tree::commit_tree_command(&args[2..]),
         "update-refs" => update_refs::update_refs_command(&args[2..]),
         "branch" => branch::branch_command(&args[2..]),
         _ => Err(anyhow::anyhow!(format!("Unknown command {}", command))),

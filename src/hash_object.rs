@@ -14,17 +14,17 @@ struct HashObjectConfig {
     file: String,
 }
 
-pub fn write_and_output(args: &[String]) -> Result<(), anyhow::Error> {
+pub fn hash_object_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_config(args)?;
     let mut file_contents = read_from_file(config.file.as_str())?;
 
-    let hash = hash_and_write(&FileType::Blob, &mut file_contents)?;
+    let hash = hash_and_write_object(&FileType::Blob, &mut file_contents)?;
     print!("{}", &hash.full_hash());
 
     Ok(())
 }
 
-pub fn hash_and_write(
+pub fn hash_and_write_object(
     file_type: &FileType,
     file_contents: &mut Vec<u8>,
 ) -> Result<FileHash, anyhow::Error> {

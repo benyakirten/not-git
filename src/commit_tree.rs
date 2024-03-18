@@ -9,7 +9,7 @@ pub struct CommitTreeConfig {
     // TODO: Add author and committer - figure out how git gets the values.
 }
 
-pub fn create_commit_tree(args: &[String]) -> Result<(), anyhow::Error> {
+pub fn commit_tree_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_commit_tree_config(args)?;
     let hash = commit_tree(config)?;
 
@@ -22,7 +22,7 @@ pub fn commit_tree(config: CommitTreeConfig) -> Result<String, anyhow::Error> {
     let mut header = get_commit_header(&contents);
 
     header.append(&mut contents);
-    let hash = hash_object::hash_and_write(&FileType::Commit, &mut header)?;
+    let hash = hash_object::hash_and_write_object(&FileType::Commit, &mut header)?;
 
     Ok(hash.full_hash())
 }

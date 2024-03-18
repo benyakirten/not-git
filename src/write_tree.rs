@@ -75,7 +75,7 @@ fn build_tree_from_path(path: PathBuf) -> Result<Vec<TreeFile>, anyhow::Error> {
             TreeFileType::Error(_) => "".to_string(),
             TreeFileType::Other(file_type, path) => {
                 let mut file_contents = utils::read_from_file(path)?;
-                let hash = hash_object::hash_and_write(&file_type, &mut file_contents)?;
+                let hash = hash_object::hash_and_write_object(&file_type, &mut file_contents)?;
                 hash.full_hash()
             }
             TreeFileType::Tree(mut tree_files) => hash_tree(&mut tree_files)?,
@@ -137,6 +137,6 @@ fn hash_tree(tree_files: &mut Vec<TreeFile>) -> Result<String, anyhow::Error> {
         tree_content.append(&mut sha_bytes);
     }
 
-    let hash = hash_object::hash_and_write(&FileType::Tree, &mut tree_content)?;
+    let hash = hash_object::hash_and_write_object(&FileType::Tree, &mut tree_content)?;
     Ok(hash.full_hash())
 }

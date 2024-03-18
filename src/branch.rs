@@ -1,12 +1,14 @@
 use std::path::PathBuf;
 
+use crate::utils::get_head_ref;
+
 pub struct BranchConfig {
     all: bool,
 }
 
 pub struct BranchOptions {
     branches: Vec<String>,
-    current_head: String,
+    head_ref: String,
 }
 
 pub fn branch_command(args: &[String]) -> Result<(), anyhow::Error> {
@@ -14,7 +16,7 @@ pub fn branch_command(args: &[String]) -> Result<(), anyhow::Error> {
     let branches = list_branches(config)?;
 
     for file_name in branches.branches {
-        if file_name == branches.current_head {
+        if file_name == branches.head_ref {
             println!("\x1b[92m * {}\x1b[0m", file_name);
         } else {
             println!("   {}", file_name);
@@ -36,24 +38,9 @@ pub fn list_branches(config: BranchConfig) -> Result<BranchOptions, anyhow::Erro
         branches.extend(remotes_branches);
     }
 
-    let head = ["not-git", "HEAD"].iter().collect::<PathBuf>();
-    let head = std::fs::read_to_string(head)?;
+    let head_ref = get_head_ref()?;
 
-    let head_ref = head
-        .split("refs/heads/")
-        .last()
-        .ok_or_else(|| {
-            anyhow::anyhow!(format!(
-                "Invalid HEAD file. Expected ref: refs/heads<branch_name>, got {}",
-                head
-            ))
-        })?
-        .trim();
-
-    let branch_options = BranchOptions {
-        branches,
-        current_head: head_ref.to_string(),
-    };
+    let branch_options = BranchOptions { branches, head_ref };
     Ok(branch_options)
 }
 
