@@ -13,18 +13,18 @@ pub fn commit_tree_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_commit_tree_config(args)?;
     let hash = commit_tree(config)?;
 
-    println!("{}", hash);
+    println!("{}", hash.full_hash());
     Ok(())
 }
 
-pub fn commit_tree(config: CommitTreeConfig) -> Result<String, anyhow::Error> {
+pub fn commit_tree(config: CommitTreeConfig) -> Result<FileHash, anyhow::Error> {
     let mut contents = create_file_contents(config)?;
     let mut header = get_commit_header(&contents);
 
     header.append(&mut contents);
     let hash = hash_object::hash_and_write_object(&FileType::Commit, &mut header)?;
 
-    Ok(hash.full_hash())
+    Ok(hash)
 }
 
 fn create_file_contents(config: CommitTreeConfig) -> Result<Vec<u8>, anyhow::Error> {

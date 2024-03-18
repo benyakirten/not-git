@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::{env, path::PathBuf};
 
+use crate::file_hash::FileHash;
 use crate::ls_tree::FileType;
 use crate::{hash_object, utils};
 
@@ -26,17 +27,19 @@ struct TreeFile {
     sha: String,
 }
 
-pub fn write_tree(_: &[String]) -> Result<(), anyhow::Error> {
-    let sha = write(&[])?;
-    println!("{}", sha);
+pub fn write_tree_command(_: &[String]) -> Result<(), anyhow::Error> {
+    let sha = write_tree()?;
+    println!("{}", sha.full_hash());
 
     Ok(())
 }
 
-pub fn write(_: &[String]) -> Result<String, anyhow::Error> {
+pub fn write_tree() -> Result<FileHash, anyhow::Error> {
     let path = env::current_dir()?;
     let mut root_tree = build_tree_from_path(path)?;
+
     let sha = hash_tree(&mut root_tree)?;
+    let sha = FileHash::from_sha(sha)?;
 
     Ok(sha)
 }

@@ -1,8 +1,97 @@
+use std::{fs, path::PathBuf};
+
+use crate::{
+    cat_file::{self, CatFileConfig},
+    commit_tree::{self, CommitTreeConfig},
+    file_hash::FileHash,
+    update_refs::{self, UpdateRefsConfig},
+    utils::get_head_ref,
+    write_tree,
+};
+
+pub struct CommitConfig {
+    pub message: String,
+}
+
 pub fn commit_command(args: &[String]) -> Result<(), anyhow::Error> {
-    // 1. Get message from `-m` flag
-    // 2. Get tree hash from write-tree
-    // 3. Call commit-tree with the data
-    // 4. Get current head for branch name
-    // 5. Call update-refs with the commit hash/branch name
+    let config = parse_commit_config(args)?;
+    commit(config)?;
+
+    // TODO: Add proper output message.
+    // Output might look like:
+    // 2 files changed, 9 insertions(+)
+    //  create mode 100644 src/commit.rs
+    println!("{}", "Commit successful.");
+
     Ok(())
+}
+
+pub fn commit(config: CommitConfig) -> Result<(), anyhow::Error> {
+    let head_ref: String = get_head_ref()?;
+    let head_hash = get_parent_hash(&head_ref)?;
+    let parent_hash = match head_hash {
+        Some(hash) => get_parent_commit(hash)?,
+        None => None,
+    };
+
+    let tree_hash = write_tree::write_tree()?;
+
+    let commit_hash = commit_tree::commit_tree(CommitTreeConfig {
+        tree_hash,
+        message: config.message,
+        parent_hash,
+    })?;
+
+    let update_refs_config = UpdateRefsConfig {
+        commit_hash,
+        path: PathBuf::from(head_ref),
+    };
+    update_refs::update_refs(update_refs_config)?;
+
+    Ok(())
+}
+
+fn parse_commit_config(args: &[String]) -> Result<CommitConfig, anyhow::Error> {
+    if args.len() < 2 || args[0] != "-m" {
+        return Err(anyhow::anyhow!("Usage: commit -m <message>"));
+    }
+
+    let message = args[1].to_string();
+
+    Ok(CommitConfig { message })
+}
+
+fn get_parent_hash(head_ref: &str) -> Result<Option<FileHash>, anyhow::Error> {
+    let head_file_path = PathBuf::from(head_ref);
+    let head_file_path = ["not-git", "refs", "heads"]
+        .iter()
+        .collect::<PathBuf>()
+        .join(head_file_path);
+
+    if !head_file_path.exists() {
+        return Ok(None);
+    }
+
+    let current_commit_hash = fs::read_to_string(head_file_path)?;
+    let hash = FileHash::from_sha(current_commit_hash.trim().to_string())?;
+    Ok(Some(hash))
+}
+
+fn get_parent_commit(file_hash: FileHash) -> Result<Option<FileHash>, anyhow::Error> {
+    let cat_file_config = CatFileConfig {
+        dir: file_hash.prefix,
+        file_name: file_hash.hash,
+    };
+
+    let commit_content = cat_file::decode_file(cat_file_config)?;
+
+    for line in commit_content.split("\n") {
+        if let Some(hash_parts) = line.split_once("parent ") {
+            let hash = hash_parts.1;
+            let hash = FileHash::from_sha(hash.to_string())?;
+            return Ok(Some(hash));
+        }
+    }
+
+    Ok(None)
 }

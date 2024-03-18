@@ -2,9 +2,9 @@ use std::path::PathBuf;
 
 use crate::utils;
 
-struct CatFileConfig {
-    dir: String,
-    file_name: String,
+pub struct CatFileConfig {
+    pub dir: String,
+    pub file_name: String,
 }
 
 impl Into<PathBuf> for CatFileConfig {
@@ -24,7 +24,7 @@ pub fn cat(args: &[String]) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-fn decode_file(config: CatFileConfig) -> Result<String, anyhow::Error> {
+pub fn decode_file(config: CatFileConfig) -> Result<String, anyhow::Error> {
     let decoded_content = utils::decode_file(config.into())?;
     let decoded_string = String::from_utf8(decoded_content)?;
 
