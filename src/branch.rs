@@ -41,6 +41,7 @@ fn collect_branches(path: PathBuf) -> Result<Vec<String>, anyhow::Error> {
             // TODO: Log error
             continue;
         }
+
         if p.file_type().unwrap().is_dir() {
             let dir_files = collect_branches(p.path());
             match dir_files {
