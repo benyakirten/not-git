@@ -59,21 +59,29 @@ fn delete_branch(branch_name: String) -> Result<DeleteBranchResults, anyhow::Err
     std::fs::remove_file(&path)?;
 
     Ok(DeleteBranchResults {
-        path,
+        path: path.iter().skip(3).collect(),
         sha: contents.full_hash(),
     })
 }
 
 fn create_branch(branch_name: String) -> Result<(), anyhow::Error> {
-    let head_ref = get_head_ref()?;
-    let path: PathBuf = ["not-git", "refs", "heads", &head_ref].iter().collect();
+    let path: PathBuf = ["not-git", "refs", "heads", &branch_name].iter().collect();
     if path.exists() {
         return Err(anyhow::anyhow!("Branch {} already exists", branch_name));
     }
 
-    let head_commit = read_from_file(&path)?;
-    let head_commit = String::from_utf8(head_commit)?;
-    let head_commit = FileHash::from_sha(head_commit)?;
+    let head_ref = get_head_ref()?;
+    let head_path: PathBuf = ["not-git", "refs", "heads", &head_ref].iter().collect();
+
+    if !head_path.exists() {
+        return Err(anyhow::anyhow!("HEAD does not point to a valid branch"));
+    }
+
+    let head_commit = {
+        let head_commit = read_from_file(&head_path)?;
+        let head_commit = String::from_utf8(head_commit)?;
+        FileHash::from_sha(head_commit)?
+    };
 
     let config = UpdateRefsConfig {
         commit_hash: head_commit,
@@ -143,7 +151,12 @@ fn collect_branches(
             }
         } else {
             let file_name = p.file_name().to_string_lossy().to_string();
-            let branch_name = preceding_dirs.join("/") + "/" + &file_name;
+            let branch_name_base = preceding_dirs.join("/");
+            let branch_name = if branch_name_base.is_empty() {
+                file_name
+            } else {
+                format!("{}/{}", branch_name_base, file_name)
+            };
             files.push(branch_name);
         }
     }
