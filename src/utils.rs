@@ -30,3 +30,21 @@ pub fn create_header(file_type: &FileType, file: &Vec<u8>) -> Vec<u8> {
     let header = format!("{} {}\0", file_type.to_readable_string(), file.len());
     header.as_bytes().to_vec()
 }
+
+pub fn get_head_ref() -> Result<String, anyhow::Error> {
+    let head = ["not-git", "HEAD"].iter().collect::<PathBuf>();
+    let head = fs::read_to_string(head)?;
+
+    let head_ref = head
+        .split("refs/heads/")
+        .last()
+        .ok_or_else(|| {
+            anyhow::anyhow!(format!(
+                "Invalid HEAD file. Expected ref: refs/heads<branch_name>, got {}",
+                head
+            ))
+        })?
+        .trim();
+
+    Ok(head_ref.to_string())
+}

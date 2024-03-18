@@ -2,23 +2,29 @@ use std::io::Write;
 
 use crate::{file_hash::FileHash, hash_object, ls_tree::FileType};
 
-struct CommitTreeConfig {
-    tree_hash: FileHash,
-    message: String,
-    parent_hash: Option<FileHash>,
+pub struct CommitTreeConfig {
+    pub tree_hash: FileHash,
+    pub message: String,
+    pub parent_hash: Option<FileHash>,
     // TODO: Add author and committer - figure out how git gets the values.
 }
 
-pub fn commit_tree(args: &[String]) -> Result<(), anyhow::Error> {
+pub fn commit_tree_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_commit_tree_config(args)?;
+    let hash = commit_tree(config)?;
+
+    println!("{}", hash.full_hash());
+    Ok(())
+}
+
+pub fn commit_tree(config: CommitTreeConfig) -> Result<FileHash, anyhow::Error> {
     let mut contents = create_file_contents(config)?;
     let mut header = get_commit_header(&contents);
 
     header.append(&mut contents);
-    let hash = hash_object::hash_and_write(&FileType::Commit, &mut header)?;
+    let hash = hash_object::hash_and_write_object(&FileType::Commit, &mut header)?;
 
-    println!("{}", &hash.full_hash());
-    Ok(())
+    Ok(hash)
 }
 
 fn create_file_contents(config: CommitTreeConfig) -> Result<Vec<u8>, anyhow::Error> {
@@ -32,12 +38,12 @@ fn create_file_contents(config: CommitTreeConfig) -> Result<Vec<u8>, anyhow::Err
     writeln!(
         &mut contents,
         "author {}",
-        "author Ben Horowitz >benyakir.horowitz@gmail.com>"
+        "Ben Horowitz >benyakir.horowitz@gmail.com>"
     )?;
     writeln!(
         &mut contents,
         "committer {}",
-        "committer Ben Horowitz <benyakir.horowitz@gmail.com>"
+        "Ben Horowitz <benyakir.horowitz@gmail.com>"
     )?;
     writeln!(&mut contents, "{}", config.message)?;
     Ok(contents)

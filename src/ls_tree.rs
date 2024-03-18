@@ -82,40 +82,53 @@ impl FileType {
 }
 
 #[derive(Debug)]
-struct TreeFile {
+pub struct TreeFile {
     file_type: FileType,
     file_name: String,
     sha: String,
 }
 
-pub fn list_tree(args: &[String]) -> Result<(), anyhow::Error> {
+pub fn list_tree_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_config(args)?;
     let decoded_content = decode_file(&config.file_hash)?;
-    let tree_files = parse_tree_files(decoded_content)?;
+    let output = stringify_list_tree(decoded_content, config.flag)?;
+    println!("{}", output);
 
-    match config.flag {
-        LsTreeFlag::NameOnly => {
-            for tree_file in tree_files {
-                println!("{}", tree_file.file_name);
-            }
-        }
-        LsTreeFlag::Long => {
-            for tree_file in tree_files {
-                // To not make this harder on myself, I'm leaving off the file size
-                println!(
-                    "{} {} {}\t{}",
-                    tree_file.file_type.to_number_string(),
-                    tree_file.file_type.to_readable_string(),
-                    tree_file.sha,
-                    tree_file.file_name,
-                );
-            }
-        }
-    }
     Ok(())
 }
 
-fn parse_tree_files(decoded_content: Vec<u8>) -> Result<Vec<TreeFile>, anyhow::Error> {
+pub fn stringify_list_tree(
+    decoded_content: Vec<u8>,
+    flag: LsTreeFlag,
+) -> Result<String, anyhow::Error> {
+    let tree_files = parse_tree_files(decoded_content)?;
+
+    let output_string: String = match flag {
+        LsTreeFlag::NameOnly => tree_files
+            .iter()
+            .map(|tree_file| format!("{}\n", tree_file.file_name))
+            .collect(),
+        LsTreeFlag::Long => {
+            tree_files
+                .iter()
+                .map(|tree_file| {
+                    // To not make this harder on myself, I'm leaving off the file size
+                    format!(
+                        "{} {} {}\t{}\n",
+                        tree_file.file_type.to_number_string(),
+                        tree_file.file_type.to_readable_string(),
+                        tree_file.sha,
+                        tree_file.file_name,
+                    )
+                })
+                .collect()
+        }
+    };
+
+    Ok(output_string)
+}
+
+pub fn parse_tree_files(decoded_content: Vec<u8>) -> Result<Vec<TreeFile>, anyhow::Error> {
     let mut tree_files = vec![];
 
     let (_, mut body) = split_at_next_empty_byte(decoded_content)?;
@@ -175,7 +188,7 @@ fn parse_until_next_file(body: Vec<u8>) -> Result<(TreeFile, Vec<u8>), anyhow::E
 }
 
 fn decode_file(config: &FileHash) -> Result<Vec<u8>, anyhow::Error> {
-    let path = [".git", "objects", &config.prefix, &config.hash]
+    let path = ["not-git", "objects", &config.prefix, &config.hash]
         .iter()
         .collect::<PathBuf>();
 
