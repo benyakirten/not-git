@@ -11,7 +11,7 @@ pub struct BranchOptions {
 
 pub fn branch_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_branch_config(args);
-    let branches = branch(config)?;
+    let branches = list_branches(config)?;
 
     for file_name in branches.branches {
         if file_name == branches.current_head {
@@ -24,7 +24,7 @@ pub fn branch_command(args: &[String]) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-pub fn branch(config: BranchConfig) -> Result<BranchOptions, anyhow::Error> {
+pub fn list_branches(config: BranchConfig) -> Result<BranchOptions, anyhow::Error> {
     // TODO: Handle tags
 
     let head_path: PathBuf = ["not-git", "refs", "heads"].iter().collect();
