@@ -1,5 +1,6 @@
 pub mod branch;
 pub mod cat_file;
+pub mod commit;
 pub mod commit_tree;
 pub mod file_hash;
 pub mod hash_object;
