@@ -24,14 +24,16 @@ pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
 pub fn clone(config: CloneConfig) -> Result<(), anyhow::Error> {
     // https://www.git-scm.com/docs/http-protocol
     let client = Client::new();
-    let lines = discover_references(
+    let refs = discover_references(
         client,
         &format!("{}/info/refs", config.url),
         "git-upload-pack",
     )?;
 
     println!("Cloning into {:?}", config.path);
-    println!("REFS: {:?}", lines);
+    for git_ref in refs {
+        println!("{:?}", git_ref);
+    }
     Ok(())
 }
 
@@ -95,7 +97,6 @@ fn discover_references(
         ));
     }
 
-    let a = vec![1, 2, 3, 4, 5];
     let mut lines = text.lines();
     let first_line = lines
         .next()
@@ -117,20 +118,22 @@ fn discover_references(
             if parts.is_none() {
                 return None;
             }
+
             let (mode_and_hash, branch) = parts.unwrap();
 
             let mode = mode_and_hash[0..4].to_string();
-            let commit_hash = mode_and_hash[5..].to_string();
+            let commit_hash = mode_and_hash[4..].to_string();
             let commit_hash = match FileHash::from_sha(commit_hash) {
                 Ok(hash) => hash,
                 Err(_) => return None,
             };
 
-            Some(GitRef {
+            let git_ref = GitRef {
                 mode,
                 commit_hash,
                 branch: branch.to_string(),
-            })
+            };
+            Some(git_ref)
         })
         .collect();
 
