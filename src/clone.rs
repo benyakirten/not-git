@@ -1,9 +1,18 @@
 use reqwest::blocking::Client;
 use std::path::PathBuf;
 
+use crate::file_hash::FileHash;
+
 pub struct CloneConfig {
     pub url: String,
     pub path: PathBuf,
+}
+
+#[derive(Debug)]
+struct GitRef {
+    mode: String,
+    commit_hash: FileHash,
+    branch: String,
 }
 
 pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
@@ -21,6 +30,8 @@ pub fn clone(config: CloneConfig) -> Result<(), anyhow::Error> {
         "git-upload-pack",
     )?;
 
+    println!("Cloning into {:?}", config.path);
+    println!("REFS: {:?}", lines);
     Ok(())
 }
 
@@ -28,7 +39,7 @@ fn discover_references(
     client: Client,
     url: &str,
     service_name: &str,
-) -> Result<Vec<String>, anyhow::Error> {
+) -> Result<Vec<GitRef>, anyhow::Error> {
     let request_url = format!("{}?service={}", url, service_name);
     let resp = client.get(request_url).send()?;
 
@@ -84,14 +95,46 @@ fn discover_references(
         ));
     }
 
-    let lines: Vec<String> = text.lines().map(|l| l.to_string()).collect();
-    if !lines[0].ends_with("service=git-upload-pack") {
+    let a = vec![1, 2, 3, 4, 5];
+    let mut lines = text.lines();
+    let first_line = lines
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("No lines in packet"))?;
+
+    if !first_line.ends_with("service=git-upload-pack") {
         return Err(anyhow::anyhow!(
             "Invalid packet format: first line must end with service=git-upload-pack"
         ));
     }
 
-    Ok(lines)
+    let refs: Vec<GitRef> = lines
+        .skip(1)
+        .filter_map(|line| {
+            if line == "0000" {
+                return None;
+            }
+            let parts = line.split_once(" ");
+            if parts.is_none() {
+                return None;
+            }
+            let (mode_and_hash, branch) = parts.unwrap();
+
+            let mode = mode_and_hash[0..4].to_string();
+            let commit_hash = mode_and_hash[5..].to_string();
+            let commit_hash = match FileHash::from_sha(commit_hash) {
+                Ok(hash) => hash,
+                Err(_) => return None,
+            };
+
+            Some(GitRef {
+                mode,
+                commit_hash,
+                branch: branch.to_string(),
+            })
+        })
+        .collect();
+
+    Ok(refs)
 }
 
 fn parse_clone_config(args: &[String]) -> Result<CloneConfig, anyhow::Error> {
