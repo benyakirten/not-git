@@ -1,7 +1,9 @@
-use reqwest::blocking::Client;
 use std::path::PathBuf;
 
-use crate::file_hash::FileHash;
+use reqwest::blocking::Client;
+use reqwest::header::CONTENT_TYPE;
+
+use crate::{commit, file_hash::FileHash};
 
 pub struct CloneConfig {
     pub url: String,
@@ -13,6 +15,7 @@ struct GitRef {
     mode: String,
     commit_hash: FileHash,
     branch: String,
+    is_head: bool,
 }
 
 pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
@@ -23,22 +26,69 @@ pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
 
 pub fn clone(config: CloneConfig) -> Result<(), anyhow::Error> {
     // https://www.git-scm.com/docs/http-protocol
+    // We could use async functions or we could run this as single-threaded with blocking calls
+    // We will use blocking calls for simplicity/ease of use. I don't think there's a part that
+    // would benefit from async calls yet.
     let client = Client::new();
     let refs = discover_references(
-        client,
+        &client,
         &format!("{}/info/refs", config.url),
         "git-upload-pack",
     )?;
 
-    println!("Cloning into {:?}", config.path);
-    for git_ref in refs {
-        println!("{:?}", git_ref);
+    // TODO: Write all other refs into the `.git/packed-refs` file.
+
+    let head_ref = refs
+        .iter()
+        .find(|r| r.is_head)
+        .ok_or_else(|| anyhow::anyhow!("No HEAD ref found"))?;
+
+    get_commit(&client, &config.url, &head_ref.commit_hash)?;
+    Ok(())
+}
+
+fn get_commit(client: &Client, url: &str, commit_hash: &FileHash) -> Result<(), anyhow::Error> {
+    let request_url = format!("{}/git-upload-pack", url);
+    // 0000 is the termination code
+    // 0009done is added to indicate that this is the final request in negotiation
+    let body = format!("0032want {}\n00000009done\n", commit_hash.full_hash());
+
+    let resp = client
+        .post(request_url)
+        .body(body)
+        .header(CONTENT_TYPE, "application/x-git-upload-pack-request")
+        .send()?;
+
+    let status = resp.status().as_u16();
+    if status != 200 && status != 304 {
+        return Err(anyhow::anyhow!(format!(
+            "Failed to get commit: Status code must be either 200 or 304, received {}",
+            status
+        )));
     }
+
+    let want_content_type = "application/x-git-upload-pack-result";
+    let headers = resp.headers();
+    let content_type = headers
+        .get(CONTENT_TYPE)
+        .ok_or_else(|| anyhow::anyhow!("Content-Type must equal {}", want_content_type))?
+        .to_str()?;
+
+    if content_type != want_content_type {
+        return Err(anyhow::anyhow!(
+            "Content-Type must equal {}, received {}",
+            want_content_type,
+            content_type
+        ));
+    }
+
+    let text = resp.text()?;
+    println!("Commit: {}", text);
     Ok(())
 }
 
 fn discover_references(
-    client: Client,
+    client: &Client,
     url: &str,
     service_name: &str,
 ) -> Result<Vec<GitRef>, anyhow::Error> {
@@ -53,17 +103,17 @@ fn discover_references(
         )));
     }
 
-    let want_header = format!("application/x-{}-advertisement", service_name);
+    let want_content_type = format!("application/x-{}-advertisement", service_name);
     let headers = resp.headers();
     let content_type = headers
-        .get(reqwest::header::CONTENT_TYPE)
-        .ok_or_else(|| anyhow::anyhow!(format!("Content-Type must equal {}", want_header)))?
+        .get(CONTENT_TYPE)
+        .ok_or_else(|| anyhow::anyhow!(format!("Content-Type must equal {}", want_content_type)))?
         .to_str()?;
 
-    if content_type != want_header {
+    if content_type != want_content_type {
         return Err(anyhow::anyhow!(format!(
             "Content-Type must equal {}, received {}",
-            want_header, content_type
+            want_content_type, content_type
         )));
     }
 
@@ -108,8 +158,15 @@ fn discover_references(
         ));
     }
 
+    // Head line should read 00000153{HEAD_SHA} HEAD\0{capabilities}
+    // Since we are interested only in the HEAD_SHA, we cut away everything else
+    let head_line = lines
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("No HEAD line in packet"))?;
+
+    let head_ref = FileHash::from_sha(head_line[8..48].to_string())?;
+
     let refs: Vec<GitRef> = lines
-        .skip(1)
         .filter_map(|line| {
             if line == "0000" {
                 return None;
@@ -128,10 +185,12 @@ fn discover_references(
                 Err(_) => return None,
             };
 
+            let is_head = commit_hash.full_hash() == head_ref.full_hash();
             let git_ref = GitRef {
                 mode,
                 commit_hash,
                 branch: branch.to_string(),
+                is_head,
             };
             Some(git_ref)
         })

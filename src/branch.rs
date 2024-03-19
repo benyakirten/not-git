@@ -64,6 +64,7 @@ fn delete_branch(branch_name: String) -> Result<DeleteBranchResults, anyhow::Err
     })
 }
 
+// TODO: Does this functionality need to be revisited?
 fn create_branch(branch_name: String) -> Result<(), anyhow::Error> {
     let path: PathBuf = ["not-git", "refs", "heads", &branch_name].iter().collect();
     if path.exists() {
@@ -110,11 +111,7 @@ pub fn list_branches(list_all_branches: bool) -> Result<ListBranchOptions, anyho
     let head_path: PathBuf = ["not-git", "refs", "heads"].iter().collect();
     let mut branches = collect_branches(vec![], head_path)?;
 
-    if list_all_branches {
-        let remotes_path: PathBuf = ["not-git", "refs", "remotes"].iter().collect();
-        let remotes_branches = collect_branches(vec![], remotes_path)?;
-        branches.extend(remotes_branches);
-    }
+    // TODO: List all branches if -a tag - decode packed-refs
 
     let head_ref = get_head_ref()?;
 
