@@ -123,6 +123,10 @@ pub fn read_type_and_length(cursor: &mut Cursor<&[u8]>) -> Result<ObjectType, an
     Ok(object_type)
 }
 
+/// Given the packfile encoding, the last seven bits are three bits for the
+/// object type and four bits for the size. We want to remove the three bits
+/// for the object type then get an integer representing the size from
+/// the total size - 7 bits + last 4 bits.
 fn get_object_size(value: usize) -> usize {
     // Given the entire value, we want to get the last 4 bits
     // e.g. 0b0100_1000_1011 becomes 0b1011
