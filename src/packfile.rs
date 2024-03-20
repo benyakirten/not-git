@@ -1,6 +1,7 @@
 use std::io::{Cursor, Read};
 
 use anyhow::Context;
+use flate2::bufread::ZlibDecoder;
 
 const VARINT_ENCODING_BITS: u8 = 7;
 // 0b1000_0000
@@ -20,7 +21,7 @@ pub struct PackFileHeader {
 #[derive(Debug)]
 pub struct ObjectEntry {
     pub object_type: ObjectType,
-    pub length: usize,
+    pub size: usize,
     pub data: Vec<u8>,
 }
 
@@ -29,6 +30,14 @@ impl PackFileHeader {
         let signature = String::from_utf8(bytes[0..4].to_vec())?;
         let version_number = u32::from_be_bytes(bytes[4..8].try_into()?);
         let num_objects = u32::from_be_bytes(bytes[8..].try_into()?);
+
+        if signature != "PACK" {
+            return Err(anyhow::anyhow!("Invalid packfile signature"));
+        }
+
+        if version_number != 2 && version_number != 3 {
+            return Err(anyhow::anyhow!("Invalid packfile version number"));
+        }
 
         Ok(PackFileHeader {
             signature,
@@ -83,26 +92,35 @@ impl ObjectType {
         }
     }
 
-    pub fn parse_data(&self, cursor: &mut Cursor<&[u8]>) {
+    pub fn parse_data(&self, cursor: Cursor<&[u8]>) -> Result<(), anyhow::Error> {
         match self {
-            ObjectType::Commit(length) => ObjectType::undeltified_data(length, cursor),
-            ObjectType::Tree(length) => ObjectType::undeltified_data(length, cursor),
-            ObjectType::Blob(length) => ObjectType::undeltified_data(length, cursor),
-            ObjectType::Tag(length) => ObjectType::undeltified_data(length, cursor),
-            ObjectType::OfsDelta(length) => ObjectType::obj_offset_data(length, cursor),
-            ObjectType::RefDelta(length) => ObjectType::obj_ref_data(length, cursor),
+            ObjectType::Commit(size) => ObjectType::decode_undeltified_data(size, cursor),
+            ObjectType::Tree(size) => ObjectType::decode_undeltified_data(size, cursor),
+            ObjectType::Blob(size) => ObjectType::decode_undeltified_data(size, cursor),
+            ObjectType::Tag(size) => ObjectType::decode_undeltified_data(size, cursor),
+            ObjectType::OfsDelta(size) => ObjectType::read_obj_offset_data(size, cursor),
+            ObjectType::RefDelta(size) => ObjectType::read_obj_ref_data(size, cursor),
         }
     }
 
-    fn undeltified_data(length: &usize, cursor: &mut Cursor<&[u8]>) {
+    fn decode_undeltified_data(
+        size: &usize,
+        mut cursor: Cursor<&[u8]>,
+    ) -> Result<(), anyhow::Error> {
+        let mut data = vec![0; *size];
+
+        let mut decoder = ZlibDecoder::new(&mut cursor);
+        decoder.read_exact(&mut data)?;
+
+        println!("{:?}", data);
+        Ok(())
+    }
+
+    fn read_obj_offset_data(size: &usize, mut cursor: Cursor<&[u8]>) -> Result<(), anyhow::Error> {
         todo!()
     }
 
-    fn obj_offset_data(length: &usize, cursor: &mut Cursor<&[u8]>) {
-        todo!()
-    }
-
-    fn obj_ref_data(length: &usize, cursor: &mut Cursor<&[u8]>) {
+    fn read_obj_ref_data(size: &usize, mut cursor: Cursor<&[u8]>) -> Result<(), anyhow::Error> {
         todo!()
     }
 }
@@ -113,13 +131,10 @@ pub fn read_type_and_length(cursor: &mut Cursor<&[u8]>) -> Result<ObjectType, an
     // in their git repo doesn't use this code.
     let value = read_size_encoding(cursor)?;
 
-    println!("Value: {:064b}", value);
     let object_type = get_object_type_bits(value) as u8;
     let size = get_object_size(value);
 
-    println!("Object type: {}", object_type);
     let object_type = ObjectType::new(object_type, size)?;
-    println!("Object type: {:?}", object_type);
     Ok(object_type)
 }
 

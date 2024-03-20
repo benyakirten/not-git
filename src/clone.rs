@@ -104,7 +104,7 @@ fn get_commit(client: &Client, url: &str, commit_hash: &FileHash) -> Result<(), 
     let mut cursor = Cursor::new(rest);
     for _ in 0..header.num_objects {
         let object_type = packfile::read_type_and_length(&mut cursor)?;
-        let length = object_type.length();
+        object_type.parse_data(cursor)?;
 
         break;
     }
