@@ -1,15 +1,10 @@
-use std::{
-    io::{Cursor, Read},
-    path::PathBuf,
-};
-
-use anyhow::Context;
 use reqwest::blocking::Client;
 use reqwest::header::CONTENT_TYPE;
+use std::{io::Cursor, path::PathBuf};
 
 use crate::{
     file_hash::FileHash,
-    packfile::{self, ObjectEntry, ObjectType, PackFileHeader},
+    packfile::{self, ObjectEntry, PackFileHeader},
 };
 
 pub struct CloneConfig {
@@ -89,22 +84,15 @@ fn get_commit(client: &Client, url: &str, commit_hash: &FileHash) -> Result<(), 
         ));
     }
 
-    let text = resp.text()?;
-    let text_split = text.split_once("0008NAK\n");
-    if text_split.is_none() {
-        return Err(anyhow::anyhow!("Server did not acknowledge the request"));
-    }
+    let bytes = resp.bytes()?;
 
-    let packfile_data = text_split.unwrap().1;
-    let (header, rest) = packfile_data.as_bytes().split_at(12);
-
-    let header = PackFileHeader::from_bytes(header.to_vec())?;
+    let header = PackFileHeader::from_bytes(bytes[..20].to_vec())?;
 
     let mut objects: Vec<ObjectEntry> = vec![];
-    let mut cursor = Cursor::new(rest);
+    let mut cursor = Cursor::new(&bytes[20..]);
     for _ in 0..header.num_objects {
         let object_type = packfile::read_type_and_length(&mut cursor)?;
-        object_type.parse_data(cursor)?;
+        object_type.parse_data(&mut cursor)?;
 
         break;
     }

@@ -27,9 +27,15 @@ pub struct ObjectEntry {
 
 impl PackFileHeader {
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, anyhow::Error> {
-        let signature = String::from_utf8(bytes[0..4].to_vec())?;
-        let version_number = u32::from_be_bytes(bytes[4..8].try_into()?);
-        let num_objects = u32::from_be_bytes(bytes[8..].try_into()?);
+        let head = String::from_utf8(bytes[0..8].to_vec())?;
+
+        if head != "0008NAK\n" {
+            return Err(anyhow::anyhow!("Invalid packfile header"));
+        }
+
+        let signature = String::from_utf8(bytes[8..12].to_vec())?;
+        let version_number = u32::from_be_bytes(bytes[12..16].try_into()?);
+        let num_objects = u32::from_be_bytes(bytes[16..].try_into()?);
 
         if signature != "PACK" {
             return Err(anyhow::anyhow!("Invalid packfile signature"));
@@ -92,39 +98,64 @@ impl ObjectType {
         }
     }
 
-    pub fn parse_data(&self, cursor: Cursor<&[u8]>) -> Result<(), anyhow::Error> {
+    pub fn parse_data(&self, mut cursor: &mut Cursor<&[u8]>) -> Result<(), anyhow::Error> {
         match self {
-            ObjectType::Commit(size) => ObjectType::decode_undeltified_data(size, cursor),
-            ObjectType::Tree(size) => ObjectType::decode_undeltified_data(size, cursor),
-            ObjectType::Blob(size) => ObjectType::decode_undeltified_data(size, cursor),
-            ObjectType::Tag(size) => ObjectType::decode_undeltified_data(size, cursor),
-            ObjectType::OfsDelta(size) => ObjectType::read_obj_offset_data(size, cursor),
-            ObjectType::RefDelta(size) => ObjectType::read_obj_ref_data(size, cursor),
+            ObjectType::Commit(size) => {
+                ObjectType::decode_undeltified_data(size, &self.name(), &mut cursor)
+            }
+            ObjectType::Tree(size) => {
+                ObjectType::decode_undeltified_data(size, &self.name(), &mut cursor)
+            }
+            ObjectType::Blob(size) => {
+                ObjectType::decode_undeltified_data(size, &self.name(), &mut cursor)
+            }
+            ObjectType::Tag(size) => {
+                ObjectType::decode_undeltified_data(size, &self.name(), &mut cursor)
+            }
+            ObjectType::OfsDelta(size) => {
+                ObjectType::read_obj_offset_data(size, &self.name(), cursor)
+            }
+            ObjectType::RefDelta(size) => ObjectType::read_obj_ref_data(size, &self.name(), cursor),
         }
     }
 
     fn decode_undeltified_data(
         size: &usize,
-        mut cursor: Cursor<&[u8]>,
+        object_type: &str,
+        mut cursor: &mut Cursor<&[u8]>,
     ) -> Result<(), anyhow::Error> {
-        let mut data = vec![0; *size];
+        let starting_position = cursor.position();
+        let mut data = vec![];
 
+        // We don't know the size of the compressed blob, so we just read until it gives
+        // up. Because zlib does that.
         let mut decoder = ZlibDecoder::new(&mut cursor);
-        decoder.read_exact(&mut data)?;
+        decoder.read_to_end(&mut data)?;
 
-        println!("{:?}", data);
+        let read_bytes = decoder.total_in();
+        cursor.set_position(starting_position + read_bytes);
+
         Ok(())
     }
 
-    fn read_obj_offset_data(size: &usize, mut cursor: Cursor<&[u8]>) -> Result<(), anyhow::Error> {
+    fn read_obj_offset_data(
+        size: &usize,
+        object_type: &str,
+        mut cursor: &mut Cursor<&[u8]>,
+    ) -> Result<(), anyhow::Error> {
         todo!()
     }
 
-    fn read_obj_ref_data(size: &usize, mut cursor: Cursor<&[u8]>) -> Result<(), anyhow::Error> {
+    fn read_obj_ref_data(
+        size: &usize,
+        object_type: &str,
+        mut cursor: &mut Cursor<&[u8]>,
+    ) -> Result<(), anyhow::Error> {
         todo!()
     }
 }
 
+/// We need to read the packfile in little-endian order. The first three bits are the object type.
 pub fn read_type_and_length(cursor: &mut Cursor<&[u8]>) -> Result<ObjectType, anyhow::Error> {
     // Using a `usize` type limits us to files that are 2^61 bytes in size.
     // I hope whatever future person is passing around files that are 2 exabytes
@@ -188,17 +219,16 @@ fn keep_bits(value: usize, bits: u8) -> usize {
     value & mask
 }
 
-// We receive a variable-sized encoded value from the packfile. We want to get all the bytes
-// that represent the type and length of the object. Using a cursor allows us to advance
-// that distance without keeping track of the current position in the buffer.
+/// We receive a variable-sized encoded value from the packfile. We want to get all the bytes
+/// that represent the type and length of the object. Using a cursor allows us to advance
+/// that distance without keeping track of the current position in the buffer.
 pub fn read_size_encoding(packfile_reader: &mut Cursor<&[u8]>) -> Result<usize, anyhow::Error> {
     let mut value = 0;
     let mut length = 0;
 
     loop {
         let (byte_value, more_bytes) = read_varint_byte(packfile_reader)?;
-        // We shift the byte value to the left by 7 * the number of reps we've done so far
-        // Then we add it to the front of the current value.
+        // We append the next 7 bits in little-endian order (add the new bits on the right side).
         // If we get 0b0001000 in the first 7 bits then 0b0101010 in the next 7 bits
         // Then we should get 0b0101010_0001000 - note these are group of 7 bits
         // The leftmost bits should be from the 7 rightmost bits of the most recently read byte
