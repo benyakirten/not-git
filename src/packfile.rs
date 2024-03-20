@@ -7,6 +7,7 @@ const VARINT_ENCODING_BITS: u8 = 7;
 const VARINT_CONTINUE_FLAG: u8 = 1 << VARINT_ENCODING_BITS;
 
 const TYPE_BITS: u8 = 3;
+// 7 - 3 = 4 bits
 const TYPE_BYTE_SIZE_BITS: u8 = VARINT_ENCODING_BITS - TYPE_BITS;
 
 #[derive(Debug)]
@@ -27,7 +28,7 @@ impl PackFileHeader {
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, anyhow::Error> {
         let signature = String::from_utf8(bytes[0..4].to_vec())?;
         let version_number = u32::from_be_bytes(bytes[4..8].try_into()?);
-        let num_objects = u32::from_be_bytes(bytes[8..12].try_into()?);
+        let num_objects = u32::from_be_bytes(bytes[8..].try_into()?);
 
         Ok(PackFileHeader {
             signature,
@@ -81,22 +82,76 @@ impl ObjectType {
             ObjectType::RefDelta(length) => *length,
         }
     }
+
+    pub fn parse_data(&self, cursor: &mut Cursor<&[u8]>) {
+        match self {
+            ObjectType::Commit(length) => ObjectType::undeltified_data(length, cursor),
+            ObjectType::Tree(length) => ObjectType::undeltified_data(length, cursor),
+            ObjectType::Blob(length) => ObjectType::undeltified_data(length, cursor),
+            ObjectType::Tag(length) => ObjectType::undeltified_data(length, cursor),
+            ObjectType::OfsDelta(length) => ObjectType::obj_offset_data(length, cursor),
+            ObjectType::RefDelta(length) => ObjectType::obj_ref_data(length, cursor),
+        }
+    }
+
+    fn undeltified_data(length: &usize, cursor: &mut Cursor<&[u8]>) {
+        todo!()
+    }
+
+    fn obj_offset_data(length: &usize, cursor: &mut Cursor<&[u8]>) {
+        todo!()
+    }
+
+    fn obj_ref_data(length: &usize, cursor: &mut Cursor<&[u8]>) {
+        todo!()
+    }
 }
 
 pub fn read_type_and_length(cursor: &mut Cursor<&[u8]>) -> Result<ObjectType, anyhow::Error> {
-    // Using a `usize` type limits us to files that are 2^64 bytes in size.
-    // I hope whatever future person is passing around files that are 16 exabytes
+    // Using a `usize` type limits us to files that are 2^61 bytes in size.
+    // I hope whatever future person is passing around files that are 2 exabytes
     // in their git repo doesn't use this code.
     let value = read_size_encoding(cursor)?;
-    let object_type = left_bits(value as u8, TYPE_BITS);
-    let length = value >> TYPE_BITS;
 
-    let object_type = ObjectType::new(object_type, length)?;
+    let object_type = get_object_type_bits(value) as u8;
+    let size = get_object_size(value);
+
+    println!("Object type: {}", object_type);
+    let object_type = ObjectType::new(object_type, size)?;
+    println!("Object type: {:?}", object_type);
     Ok(object_type)
 }
 
-fn left_bits(bits: u8, n: u8) -> u8 {
-    bits >> (8 - n)
+fn get_object_size(value: usize) -> usize {
+    return 0;
+}
+
+fn get_object_type_bits(value: usize) -> usize {
+    // The value will be encoded as groups of concatenated 7 bits representing the size
+    // Except the last 7 bits includes the object type in the first three bits
+    // We will have something like `0b1010001000101010`, and we need to shift this over
+    // by 4 bits then take the next 3 bits - 4 in this case, the object type.
+
+    // Shift right by 4 bits - get rid of the size bits in the last 7 bits
+    let size_and_object_type = value >> TYPE_BYTE_SIZE_BITS;
+
+    // Read the last 3 bits
+    return keep_bits(size_and_object_type, TYPE_BITS);
+}
+
+fn keep_bits(value: usize, bits: u8) -> usize {
+    // Shift 1 by however many bits we want to keep
+    // e.g. with size 3: 0b1000
+    let mask = 1 << bits;
+
+    // Subtract 1 so that all the bits the right of it are 1
+    // e.g. 0b1000 - 1 = 0b0111
+    let mask = mask - 1;
+
+    // Only retain the bits that are in the mask - 0 (mask) & 1 (value) = 0
+    // Therefore only the bits that have a 1 in the mask will be kept
+    // The mask will be applied to the rightmost bits
+    value & mask
 }
 
 // We receive a variable-sized encoded value from the packfile. We want to get all the bytes
@@ -108,15 +163,17 @@ pub fn read_size_encoding(packfile_reader: &mut Cursor<&[u8]>) -> Result<usize, 
 
     loop {
         let (byte_value, more_bytes) = read_varint_byte(packfile_reader)?;
-
         // We shift the byte value to the left by 7 * the number of reps we've done so far
-        // Then we add it to the value we have we have accumulated so far by using the OR operator.
+        // Then we add it to the front of the current value.
+        // If we get 0b0001000 in the first 7 bits then 0b0101010 in the next 7 bits
+        // Then we should get 0b0101010_0001000 - note these are group of 7 bits
+        // The leftmost bits should be from the 7 rightmost bits of the most recently read byte
         value |= (byte_value as usize) << length;
-
         if !more_bytes {
             return Ok(value);
         }
 
+        // Increment how much we left shift by 7 bits.
         length += VARINT_ENCODING_BITS;
     }
 }

@@ -96,7 +96,8 @@ fn get_commit(client: &Client, url: &str, commit_hash: &FileHash) -> Result<(), 
     }
 
     let packfile_data = text_split.unwrap().1;
-    let (header, rest) = packfile_data.as_bytes().split_at(16);
+    let (header, rest) = packfile_data.as_bytes().split_at(12);
+
     let header = PackFileHeader::from_bytes(header.to_vec())?;
 
     let mut objects: Vec<ObjectEntry> = vec![];
@@ -105,32 +106,10 @@ fn get_commit(client: &Client, url: &str, commit_hash: &FileHash) -> Result<(), 
         let object_type = packfile::read_type_and_length(&mut cursor)?;
         let length = object_type.length();
 
-        todo!();
-        // let data = read_compressed_data(&mut cursor, length)?;
-
-        // let object = ObjectEntry {
-        //     object_type,
-        //     length,
-        //     data,
-        // };
-
-        // objects.push(object);
-    }
-
-    for object in objects {
-        println!("OBJECT: {:?}", object);
+        break;
     }
 
     Ok(())
-}
-
-fn read_compressed_data(
-    cursor: &mut Cursor<&[u8]>,
-    length: usize,
-) -> Result<Vec<u8>, anyhow::Error> {
-    let mut data = vec![0; length];
-    cursor.read_exact(&mut data)?;
-    Ok(data)
 }
 
 fn discover_references(
