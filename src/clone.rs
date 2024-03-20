@@ -31,7 +31,7 @@ pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-pub fn clone(config: CloneConfig) -> Result<(), anyhow::Error> {
+pub fn clone(config: CloneConfig) -> Result<Vec<ObjectEntry>, anyhow::Error> {
     // https://www.git-scm.com/docs/http-protocol
     // We could use async functions or we could run this as single-threaded with blocking calls
     // We will use blocking calls for simplicity/ease of use. I don't think there's a part that
@@ -61,15 +61,20 @@ pub fn clone(config: CloneConfig) -> Result<(), anyhow::Error> {
 
     let mut objects: Vec<ObjectEntry> = vec![];
     let mut cursor = Cursor::new(&commit[20..]);
+
     for _ in 0..header.num_objects {
         let object_type = packfile::read_type_and_length(&mut cursor)?;
-        let mut decoded_data = object_type.parse_data(&mut cursor)?;
-
-        hash_object::hash_and_write_object(&FileType::Tree, &mut decoded_data)?;
-        break;
+        println!("{:?}", object_type);
+        let decoded_data = object_type.parse_data(&mut cursor)?;
+        let object = ObjectEntry {
+            object_type,
+            size: decoded_data.len(),
+            data: decoded_data,
+        };
+        objects.push(object);
     }
 
-    Ok(())
+    Ok(objects)
 }
 
 fn get_commit(client: &Client, url: &str, commit_hash: &FileHash) -> Result<Bytes, anyhow::Error> {

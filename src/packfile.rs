@@ -3,6 +3,8 @@ use std::io::{Cursor, Read};
 use anyhow::Context;
 use flate2::bufread::ZlibDecoder;
 
+use crate::{hash_object, ls_tree::FileType};
+
 const VARINT_ENCODING_BITS: u8 = 7;
 // 0b1000_0000
 const VARINT_CONTINUE_FLAG: u8 = 1 << VARINT_ENCODING_BITS;
@@ -100,16 +102,27 @@ impl ObjectType {
 
     pub fn parse_data(&self, mut cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, anyhow::Error> {
         match self {
-            ObjectType::Commit(size) => ObjectType::decode_undeltified_data(&mut cursor),
-            ObjectType::Tree(size) => ObjectType::decode_undeltified_data(&mut cursor),
-            ObjectType::Blob(size) => ObjectType::decode_undeltified_data(&mut cursor),
-            ObjectType::Tag(size) => ObjectType::decode_undeltified_data(&mut cursor),
+            ObjectType::Commit(size) => {
+                ObjectType::decode_undeltified_data(FileType::Commit, &mut cursor)
+            }
+            ObjectType::Tree(size) => {
+                ObjectType::decode_undeltified_data(FileType::Tree, &mut cursor)
+            }
+            ObjectType::Blob(size) => {
+                ObjectType::decode_undeltified_data(FileType::Blob, &mut cursor)
+            }
+            ObjectType::Tag(size) => {
+                ObjectType::decode_undeltified_data(FileType::Tag, &mut cursor)
+            }
             ObjectType::OfsDelta(size) => ObjectType::read_obj_offset_data(cursor),
             ObjectType::RefDelta(size) => ObjectType::read_obj_ref_data(cursor),
         }
     }
 
-    fn decode_undeltified_data(mut cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, anyhow::Error> {
+    fn decode_undeltified_data(
+        file_type: FileType,
+        mut cursor: &mut Cursor<&[u8]>,
+    ) -> Result<Vec<u8>, anyhow::Error> {
         let starting_position = cursor.position();
         let mut data = vec![];
 
@@ -120,6 +133,8 @@ impl ObjectType {
 
         let read_bytes = decoder.total_in();
         cursor.set_position(starting_position + read_bytes);
+
+        hash_object::hash_and_write_object(&file_type, &mut data)?;
         Ok(data)
     }
 

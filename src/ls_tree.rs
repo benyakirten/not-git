@@ -29,6 +29,7 @@ pub enum FileType {
     Executable,
     Symlink,
     Commit,
+    Tag,
 }
 
 impl FileType {
@@ -52,6 +53,7 @@ impl FileType {
             FileType::Executable => "100755",
             FileType::Symlink => "120000",
             FileType::Commit => "160000",
+            FileType::Tag => "",
         }
     }
 
@@ -62,6 +64,7 @@ impl FileType {
             FileType::Executable => "executable".to_string(),
             FileType::Symlink => "symlink".to_string(),
             FileType::Commit => "commit".to_string(),
+            FileType::Tag => "tag".to_string(),
         }
     }
 
