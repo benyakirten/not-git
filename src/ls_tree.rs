@@ -35,7 +35,7 @@ impl FileType {
     pub fn from_mode(mode: &str) -> Result<FileType, anyhow::Error> {
         match mode {
             "100644" => Ok(FileType::Blob),
-            "040000" => Ok(FileType::Tree),
+            "040000" | "40000" => Ok(FileType::Tree),
             "100755" => Ok(FileType::Executable),
             "120000" => Ok(FileType::Symlink),
             _ => Err(anyhow::anyhow!(format!(

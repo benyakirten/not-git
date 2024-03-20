@@ -1,9 +1,14 @@
+use std::{io::Cursor, path::PathBuf};
+
+use bytes::Bytes;
+
 use reqwest::blocking::Client;
 use reqwest::header::CONTENT_TYPE;
-use std::{io::Cursor, path::PathBuf};
 
 use crate::{
     file_hash::FileHash,
+    hash_object,
+    ls_tree::FileType,
     packfile::{self, ObjectEntry, PackFileHeader},
 };
 
@@ -45,11 +50,29 @@ pub fn clone(config: CloneConfig) -> Result<(), anyhow::Error> {
         .find(|r| r.is_head)
         .ok_or_else(|| anyhow::anyhow!("No HEAD ref found"))?;
 
-    get_commit(&client, &config.url, &head_ref.commit_hash)?;
+    let commit = get_commit(&client, &config.url, &head_ref.commit_hash)?;
+
+    // Header will contain the following:
+    // 1. 0008NAK\n - because we have ended negotiation
+    // 2. 4-byte signature which can be stringified to PACK
+    // 3. 4-byte version number - always 2 or 3
+    // 4. 4-byte number of objects
+    let header = PackFileHeader::from_bytes(commit[..20].to_vec())?;
+
+    let mut objects: Vec<ObjectEntry> = vec![];
+    let mut cursor = Cursor::new(&commit[20..]);
+    for _ in 0..header.num_objects {
+        let object_type = packfile::read_type_and_length(&mut cursor)?;
+        let mut decoded_data = object_type.parse_data(&mut cursor)?;
+
+        hash_object::hash_and_write_object(&FileType::Tree, &mut decoded_data)?;
+        break;
+    }
+
     Ok(())
 }
 
-fn get_commit(client: &Client, url: &str, commit_hash: &FileHash) -> Result<(), anyhow::Error> {
+fn get_commit(client: &Client, url: &str, commit_hash: &FileHash) -> Result<Bytes, anyhow::Error> {
     let request_url = format!("{}/git-upload-pack", url);
     // 0000 is the termination code
     // 0009done is added to indicate that this is the final request in negotiation
@@ -84,20 +107,13 @@ fn get_commit(client: &Client, url: &str, commit_hash: &FileHash) -> Result<(), 
         ));
     }
 
+    // BEWARE: DO NOT CONVERT TO STRING
+    // Some of the response can be encoded to string
+    // but some of it can't. Calling `.text` is like calling
+    // .from_utf8_lossy - bytes that cannot be decoded to string
+    // are replaced with a special unicode character
     let bytes = resp.bytes()?;
-
-    let header = PackFileHeader::from_bytes(bytes[..20].to_vec())?;
-
-    let mut objects: Vec<ObjectEntry> = vec![];
-    let mut cursor = Cursor::new(&bytes[20..]);
-    for _ in 0..header.num_objects {
-        let object_type = packfile::read_type_and_length(&mut cursor)?;
-        object_type.parse_data(&mut cursor)?;
-
-        break;
-    }
-
-    Ok(())
+    Ok(bytes)
 }
 
 fn discover_references(

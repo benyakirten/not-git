@@ -98,32 +98,18 @@ impl ObjectType {
         }
     }
 
-    pub fn parse_data(&self, mut cursor: &mut Cursor<&[u8]>) -> Result<(), anyhow::Error> {
+    pub fn parse_data(&self, mut cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, anyhow::Error> {
         match self {
-            ObjectType::Commit(size) => {
-                ObjectType::decode_undeltified_data(size, &self.name(), &mut cursor)
-            }
-            ObjectType::Tree(size) => {
-                ObjectType::decode_undeltified_data(size, &self.name(), &mut cursor)
-            }
-            ObjectType::Blob(size) => {
-                ObjectType::decode_undeltified_data(size, &self.name(), &mut cursor)
-            }
-            ObjectType::Tag(size) => {
-                ObjectType::decode_undeltified_data(size, &self.name(), &mut cursor)
-            }
-            ObjectType::OfsDelta(size) => {
-                ObjectType::read_obj_offset_data(size, &self.name(), cursor)
-            }
-            ObjectType::RefDelta(size) => ObjectType::read_obj_ref_data(size, &self.name(), cursor),
+            ObjectType::Commit(size) => ObjectType::decode_undeltified_data(&mut cursor),
+            ObjectType::Tree(size) => ObjectType::decode_undeltified_data(&mut cursor),
+            ObjectType::Blob(size) => ObjectType::decode_undeltified_data(&mut cursor),
+            ObjectType::Tag(size) => ObjectType::decode_undeltified_data(&mut cursor),
+            ObjectType::OfsDelta(size) => ObjectType::read_obj_offset_data(cursor),
+            ObjectType::RefDelta(size) => ObjectType::read_obj_ref_data(cursor),
         }
     }
 
-    fn decode_undeltified_data(
-        size: &usize,
-        object_type: &str,
-        mut cursor: &mut Cursor<&[u8]>,
-    ) -> Result<(), anyhow::Error> {
+    fn decode_undeltified_data(mut cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, anyhow::Error> {
         let starting_position = cursor.position();
         let mut data = vec![];
 
@@ -134,23 +120,14 @@ impl ObjectType {
 
         let read_bytes = decoder.total_in();
         cursor.set_position(starting_position + read_bytes);
-
-        Ok(())
+        Ok(data)
     }
 
-    fn read_obj_offset_data(
-        size: &usize,
-        object_type: &str,
-        mut cursor: &mut Cursor<&[u8]>,
-    ) -> Result<(), anyhow::Error> {
+    fn read_obj_offset_data(mut cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, anyhow::Error> {
         todo!()
     }
 
-    fn read_obj_ref_data(
-        size: &usize,
-        object_type: &str,
-        mut cursor: &mut Cursor<&[u8]>,
-    ) -> Result<(), anyhow::Error> {
+    fn read_obj_ref_data(mut cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, anyhow::Error> {
         todo!()
     }
 }
