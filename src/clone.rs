@@ -1,9 +1,16 @@
-use std::path::PathBuf;
+use std::{
+    io::{Cursor, Read},
+    path::PathBuf,
+};
 
+use anyhow::Context;
 use reqwest::blocking::Client;
 use reqwest::header::CONTENT_TYPE;
 
-use crate::{commit, file_hash::FileHash};
+use crate::{
+    file_hash::FileHash,
+    packfile::{self, ObjectEntry, ObjectType, PackFileHeader},
+};
 
 pub struct CloneConfig {
     pub url: String,
@@ -83,8 +90,47 @@ fn get_commit(client: &Client, url: &str, commit_hash: &FileHash) -> Result<(), 
     }
 
     let text = resp.text()?;
-    println!("Commit: {}", text);
+    let text_split = text.split_once("0008NAK\n");
+    if text_split.is_none() {
+        return Err(anyhow::anyhow!("Server did not acknowledge the request"));
+    }
+
+    let packfile_data = text_split.unwrap().1;
+    let (header, rest) = packfile_data.as_bytes().split_at(16);
+    let header = PackFileHeader::from_bytes(header.to_vec())?;
+
+    let mut objects: Vec<ObjectEntry> = vec![];
+    let mut cursor = Cursor::new(rest);
+    for _ in 0..header.num_objects {
+        let object_type = packfile::read_type_and_length(&mut cursor)?;
+        let length = object_type.length();
+
+        todo!();
+        // let data = read_compressed_data(&mut cursor, length)?;
+
+        // let object = ObjectEntry {
+        //     object_type,
+        //     length,
+        //     data,
+        // };
+
+        // objects.push(object);
+    }
+
+    for object in objects {
+        println!("OBJECT: {:?}", object);
+    }
+
     Ok(())
+}
+
+fn read_compressed_data(
+    cursor: &mut Cursor<&[u8]>,
+    length: usize,
+) -> Result<Vec<u8>, anyhow::Error> {
+    let mut data = vec![0; length];
+    cursor.read_exact(&mut data)?;
+    Ok(data)
 }
 
 fn discover_references(
@@ -212,4 +258,8 @@ fn parse_clone_config(args: &[String]) -> Result<CloneConfig, anyhow::Error> {
     };
 
     Ok(CloneConfig { url, path })
+}
+
+fn parse_objects(num_object: u32) -> Result<(), anyhow::Error> {
+    todo!()
 }
