@@ -113,6 +113,7 @@ pub fn read_type_and_length(cursor: &mut Cursor<&[u8]>) -> Result<ObjectType, an
     // in their git repo doesn't use this code.
     let value = read_size_encoding(cursor)?;
 
+    println!("Value: {:064b}", value);
     let object_type = get_object_type_bits(value) as u8;
     let size = get_object_size(value);
 
@@ -123,7 +124,21 @@ pub fn read_type_and_length(cursor: &mut Cursor<&[u8]>) -> Result<ObjectType, an
 }
 
 fn get_object_size(value: usize) -> usize {
-    return 0;
+    // Given the entire value, we want to get the last 4 bits
+    // e.g. 0b0100_1000_1011 becomes 0b1011
+    let final_four_bits = keep_bits(value, TYPE_BYTE_SIZE_BITS);
+
+    // Remove the final 7 bits from the file
+    // e.g. 0b0100_1000_1011 becomes 0b0100_1
+    let value_with_no_final_bits = value >> VARINT_ENCODING_BITS;
+
+    // Add three empty bits to the end
+    // e.g. 0b0100_1000_1011 -> 0b0100_1 -> 0b0100_1000_0000
+    let value_with_no_final_bits = value_with_no_final_bits << TYPE_BYTE_SIZE_BITS;
+
+    // Fill the final 4 bits in with the value from the first step
+    // e.g. 0b0100_1000_0000 | 0b1011 = 0b0100_1000_1011
+    return value_with_no_final_bits | final_four_bits;
 }
 
 fn get_object_type_bits(value: usize) -> usize {
