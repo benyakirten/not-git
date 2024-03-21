@@ -14,6 +14,12 @@ const TYPE_BITS: u8 = 3;
 // 7 - 3 = 4 bits
 const TYPE_BYTE_SIZE_BITS: u8 = VARINT_ENCODING_BITS - TYPE_BITS;
 
+// Maximum number of bytes that might be specified in offset.
+const MAX_OFFSET_BYTES: usize = 4;
+
+// Maximum number of mgihts that be specified in size.
+const MAX_SIZE_BYTES: usize = 3;
+
 #[derive(Debug)]
 pub struct PackFileHeader {
     pub signature: String,
@@ -206,14 +212,14 @@ fn apply_deltas(target: &ObjectEntry, delta_data: Vec<u8>) -> Result<Vec<u8>, an
     loop {
         let instruction = read_instruction(&mut cursor)?;
         let new_data = match instruction {
-            DeltaInstruction::Copy(copy_instruction) => {
-                apply_copy_instruction(&mut cursor, copy_instruction)
+            DeltaInstruction::Insert(instruction) => {
+                apply_insert_instruction(&mut cursor, instruction.size as usize)?
             }
-            DeltaInstruction::Insert(insert_instruction) => {
-                apply_insert_instruction(&mut cursor, insert_instruction)
+            DeltaInstruction::Copy(instruction) => {
+                apply_copy_instruction(target, instruction.offset, instruction.size)?
             }
             DeltaInstruction::End => break,
-        }?;
+        };
 
         data.extend(new_data);
     }
@@ -222,42 +228,96 @@ fn apply_deltas(target: &ObjectEntry, delta_data: Vec<u8>) -> Result<Vec<u8>, an
 }
 
 fn read_instruction(cursor: &mut Cursor<&[u8]>) -> Result<DeltaInstruction, anyhow::Error> {
-    let mut bytes: [u8; 1] = [0];
-    match cursor.read_exact(&mut bytes) {
-        Ok(_) => {}
+    let mut byte = match read_byte(cursor) {
+        Ok(byte) => byte,
         // We have finihed reading instructions when we get to the EOF
         Err(e) if e.kind() == ErrorKind::UnexpectedEof => return Ok(DeltaInstruction::End),
         Err(e) => return Err(e.into()),
     };
 
-    let [byte] = bytes;
-
     // Test if the most significant bit (first) is 0 or 1 by masking all bits except the first
-    // A 0 means it's an insert instruction, a 1 means it's a copy instruction
+    // 0 - insertion
+    // 1 - copy
     let instruction: DeltaInstruction = if byte & MSB_MASK == 0 {
         // Get the last 7 bits of the byte
         let size = byte & !MSB_MASK;
-        let insert_instruction = InsertInstruction { size };
-        DeltaInstruction::Insert(insert_instruction)
+        let instruction = InsertInstruction { size };
+        DeltaInstruction::Insert(instruction)
     } else {
-        todo!();
+        let offset = get_copy_instruction_data(cursor, MAX_OFFSET_BYTES as u8, &mut byte)?;
+        let size = match get_copy_instruction_data(cursor, MAX_SIZE_BYTES as u8, &mut byte)? {
+            // Per the git instructions, if a size of 0 is specified
+            // it should be interpreted as 0x10000 == 2^16 == 65536.
+            0 => 0x10000,
+            size => size,
+        };
+
+        let instruction = CopyInstruction { offset, size };
+        DeltaInstruction::Copy(instruction)
     };
 
     Ok(instruction)
 }
 
-fn apply_copy_instruction(
+/// Get a offset or size for a copy instruction.
+/// CF https://github.com/git/git/blob/795ea8776befc95ea2becd8020c7a284677b4161/Documentation/gitformat-pack.txt#L128
+/// In the original byte to get the instruction, 0b1xxx_xxxx - starting with little endian order (i.e. from the right)
+/// the first 4 bits show how many bytes are in the offset, and idem for the last 3 in relation to the size.
+/// The sum of the 1s in each section of the instructions indicate how much should be read, and their positioning
+/// indicates in which order the bytes should be inserted in a u32.
+/// If we have the copy instruction 0b1101_0101, we have an offset of `0101` and a size of `101`.
+/// This indicates that the offset will come from two bytes, which will represent byte 2 and byte 4.
+/// If the bytes are read as 0b0010_010 0b1001_0010 then the final value will be
+/// 0b0000_0000 0b0010_0101 0b0000_0000 0b1001_0010
+/// Same for the size but with 3 bytes (so maximum value is 16mb)
+fn get_copy_instruction_data(
     cursor: &mut Cursor<&[u8]>,
-    instruction: CopyInstruction,
+    num_bytes: u8,
+    instruction_bits: &mut u8,
+) -> Result<usize, anyhow::Error> {
+    let mut value = 0;
+
+    for index in 0..num_bytes {
+        // If the last bit is 1 then read the byte
+        if *instruction_bits & 1 == 1 {
+            let byte = read_byte(cursor)?;
+
+            // Move the read byte over by 8 bits incrementally
+            // because we're reading this in little-endian order
+            // e.g. 0b1101_1010 will be read as 0b1011_0110 0b0000_0000
+            let byte = byte << (index * 8);
+
+            value |= byte as usize;
+        }
+
+        // Move over the instruction bits by 1
+        *instruction_bits >>= 1;
+    }
+
+    Ok(value)
+}
+
+fn apply_copy_instruction(
+    target: &ObjectEntry,
+    offset: usize,
+    size: usize,
 ) -> Result<Vec<u8>, anyhow::Error> {
-    todo!()
+    let data = target.data.get(offset..offset + size).ok_or_else(|| {
+        anyhow::anyhow!(format!(
+            "Unable to get data from offset {} to {} in target data",
+            offset,
+            offset + size
+        ))
+    })?;
+
+    Ok(data.to_vec())
 }
 
 fn apply_insert_instruction(
     cursor: &mut Cursor<&[u8]>,
-    instruction: InsertInstruction,
+    size: usize,
 ) -> Result<Vec<u8>, anyhow::Error> {
-    let mut data = vec![0; instruction.size as usize];
+    let mut data = vec![0; size];
     cursor.read_exact(&mut data)?;
 
     Ok(data)
@@ -389,4 +449,10 @@ pub fn read_varint_byte(packfile_reader: &mut Cursor<&[u8]>) -> Result<(u8, bool
     let more_bytes = byte & MSB_MASK != 0;
 
     Ok((value, more_bytes))
+}
+
+pub fn read_byte(cursor: &mut Cursor<&[u8]>) -> Result<u8, std::io::Error> {
+    let mut bytes: [u8; 1] = [0];
+    cursor.read_exact(&mut bytes)?;
+    Ok(bytes[0])
 }
