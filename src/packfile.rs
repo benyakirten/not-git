@@ -185,7 +185,7 @@ pub fn read_obj_ref_data(
         )));
     }
 
-    apply_deltas(&object.unwrap(), delta_data)?;
+    let _file_contents = apply_deltas(&object.unwrap(), delta_data)?;
 
     todo!()
 }
@@ -204,8 +204,8 @@ fn apply_deltas(target: &ObjectEntry, delta_data: Vec<u8>) -> Result<Vec<u8>, an
     }
 
     loop {
-        let _instruction = read_instruction(&mut cursor)?;
-        let _new_data = match _instruction {
+        let instruction = read_instruction(&mut cursor)?;
+        let new_data = match instruction {
             DeltaInstruction::Copy(copy_instruction) => {
                 apply_copy_instruction(&mut cursor, copy_instruction)
             }
@@ -215,8 +215,7 @@ fn apply_deltas(target: &ObjectEntry, delta_data: Vec<u8>) -> Result<Vec<u8>, an
             DeltaInstruction::End => break,
         }?;
 
-        data.extend(_new_data);
-        // When does the loop end?
+        data.extend(new_data);
     }
 
     Ok(data)
