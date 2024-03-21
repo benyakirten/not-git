@@ -3,7 +3,7 @@ use std::io::{Cursor, Read};
 use anyhow::Context;
 use flate2::bufread::ZlibDecoder;
 
-use crate::{hash_object, ls_tree::FileType};
+use crate::{file_hash::FileHash, hash_object, ls_tree::FileType};
 
 const VARINT_ENCODING_BITS: u8 = 7;
 // 0b1000_0000
@@ -102,49 +102,62 @@ impl ObjectType {
 
     pub fn parse_data(&self, mut cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, anyhow::Error> {
         match self {
-            ObjectType::Commit(size) => {
-                ObjectType::decode_undeltified_data(FileType::Commit, &mut cursor)
-            }
-            ObjectType::Tree(size) => {
-                ObjectType::decode_undeltified_data(FileType::Tree, &mut cursor)
-            }
-            ObjectType::Blob(size) => {
-                ObjectType::decode_undeltified_data(FileType::Blob, &mut cursor)
-            }
-            ObjectType::Tag(size) => {
-                ObjectType::decode_undeltified_data(FileType::Tag, &mut cursor)
-            }
-            ObjectType::OfsDelta(size) => ObjectType::read_obj_offset_data(cursor),
-            ObjectType::RefDelta(size) => ObjectType::read_obj_ref_data(cursor),
+            ObjectType::Commit(_) => decode_undeltified_data(FileType::Commit, &mut cursor),
+            ObjectType::Tree(_) => decode_undeltified_data(FileType::Tree, &mut cursor),
+            ObjectType::Blob(_) => decode_undeltified_data(FileType::Blob, &mut cursor),
+            ObjectType::Tag(_) => decode_undeltified_data(FileType::Tag, &mut cursor),
+            ObjectType::OfsDelta(_) => read_obj_offset_data(cursor),
+            ObjectType::RefDelta(_) => read_obj_ref_data(cursor),
         }
     }
+}
 
-    fn decode_undeltified_data(
-        file_type: FileType,
-        mut cursor: &mut Cursor<&[u8]>,
-    ) -> Result<Vec<u8>, anyhow::Error> {
-        let starting_position = cursor.position();
-        let mut data = vec![];
+fn decode_undeltified_data(
+    file_type: FileType,
+    cursor: &mut Cursor<&[u8]>,
+) -> Result<Vec<u8>, anyhow::Error> {
+    let mut data = read_next_zlib_data(cursor)?;
+    hash_object::hash_and_write_object(&file_type, &mut data)?;
+    Ok(data)
+}
 
-        // We don't know the size of the compressed blob, so we just read until it gives
-        // up. Because zlib does that.
-        let mut decoder = ZlibDecoder::new(&mut cursor);
-        decoder.read_to_end(&mut data)?;
+fn read_obj_offset_data(mut cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, anyhow::Error> {
+    // We need to read the offset from the packfile. The offset is variable-sized
+    // but negative so we are guaranteed to have seen it before now.
+    let negative_offset = read_varint_bytes_from_cursor(cursor)?;
+    // Then we need to find the object that starts at that position.
+    // Once we have that file, then we can get the data delta.
+    todo!()
+}
 
-        let read_bytes = decoder.total_in();
-        cursor.set_position(starting_position + read_bytes);
+fn read_obj_ref_data(mut cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, anyhow::Error> {
+    let mut ref_sha: [u8; 20] = [0; 20];
+    cursor.read_exact(&mut ref_sha)?;
 
-        hash_object::hash_and_write_object(&file_type, &mut data)?;
-        Ok(data)
-    }
+    let hash = hex::encode(ref_sha);
+    let hash = FileHash::from_sha(hash)?;
 
-    fn read_obj_offset_data(mut cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, anyhow::Error> {
-        todo!()
-    }
+    let deltafied_data = read_next_zlib_data(cursor)?;
 
-    fn read_obj_ref_data(mut cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, anyhow::Error> {
-        todo!()
-    }
+    // Given the hash and the deltafied data, we can decipher the final data
+
+    todo!()
+}
+
+fn read_next_zlib_data(mut cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, anyhow::Error> {
+    let starting_position = cursor.position();
+    let mut data = vec![];
+
+    // We don't know the size of the compressed blob, so we just read until it gives up.
+    let mut decoder = ZlibDecoder::new(&mut cursor);
+    decoder.read_to_end(&mut data)?;
+
+    // Since we don't know the size of the compressed blob before we read it,
+    // we need to manually move the cursor to the correct position after.
+    let read_bytes = decoder.total_in();
+    cursor.set_position(starting_position + read_bytes);
+
+    Ok(data)
 }
 
 /// We need to read the packfile in little-endian order. The first three bits are the object type.
@@ -152,7 +165,7 @@ pub fn read_type_and_length(cursor: &mut Cursor<&[u8]>) -> Result<ObjectType, an
     // Using a `usize` type limits us to files that are 2^61 bytes in size.
     // I hope whatever future person is passing around files that are 2 exabytes
     // in their git repo doesn't use this code.
-    let value = read_size_encoding(cursor)?;
+    let value = read_varint_bytes_from_cursor(cursor)?;
 
     let object_type = get_object_type_bits(value) as u8;
     let size = get_object_size(value);
@@ -214,7 +227,9 @@ fn keep_bits(value: usize, bits: u8) -> usize {
 /// We receive a variable-sized encoded value from the packfile. We want to get all the bytes
 /// that represent the type and length of the object. Using a cursor allows us to advance
 /// that distance without keeping track of the current position in the buffer.
-pub fn read_size_encoding(packfile_reader: &mut Cursor<&[u8]>) -> Result<usize, anyhow::Error> {
+pub fn read_varint_bytes_from_cursor(
+    packfile_reader: &mut Cursor<&[u8]>,
+) -> Result<usize, anyhow::Error> {
     let mut value = 0;
     let mut length = 0;
 
