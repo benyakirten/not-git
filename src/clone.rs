@@ -66,65 +66,37 @@ pub fn clone(config: CloneConfig) -> Result<Vec<ObjectEntry>, anyhow::Error> {
         let position = cursor.position() as usize;
         let object_type = packfile::read_type_and_length(&mut cursor)?;
 
-        let object = match object_type {
-            packfile::ObjectType::Commit(size) => {
-                let (data, file_hash) =
-                    packfile::decode_undeltified_data(FileType::Commit, &mut cursor)?;
-                ObjectEntry {
-                    object_type,
-                    size,
-                    data,
-                    position,
-                    file_hash,
-                }
-            }
-            packfile::ObjectType::Tree(size) => {
-                let (data, file_hash) =
-                    packfile::decode_undeltified_data(FileType::Tree, &mut cursor)?;
-                ObjectEntry {
-                    object_type,
-                    size,
-                    data,
-                    position,
-                    file_hash,
-                }
-            }
-            packfile::ObjectType::Blob(size) => {
-                let (data, file_hash) =
-                    packfile::decode_undeltified_data(FileType::Blob, &mut cursor)?;
-                ObjectEntry {
-                    object_type,
-                    size,
-                    data,
-                    position,
-                    file_hash,
-                }
-            }
-            packfile::ObjectType::Tag(size) => {
-                let (data, file_hash) =
-                    packfile::decode_undeltified_data(FileType::Tag, &mut cursor)?;
-                ObjectEntry {
-                    object_type,
-                    size,
-                    data,
-                    position,
-                    file_hash,
-                }
-            }
+        let ((data, file_hash), size) = match object_type {
+            packfile::ObjectType::Commit(size) => (
+                packfile::decode_undeltified_data(FileType::Commit, &mut cursor)?,
+                size,
+            ),
+            packfile::ObjectType::Tree(size) => (
+                packfile::decode_undeltified_data(FileType::Tree, &mut cursor)?,
+                size,
+            ),
+            packfile::ObjectType::Blob(size) => (
+                packfile::decode_undeltified_data(FileType::Blob, &mut cursor)?,
+                size,
+            ),
+            packfile::ObjectType::Tag(size) => (
+                packfile::decode_undeltified_data(FileType::Tag, &mut cursor)?,
+                size,
+            ),
             packfile::ObjectType::OfsDelta(size) => {
-                todo!()
-                // let data = packfile::read_obj_offset_data(&mut cursor)?;
-                // ObjectEntry {
-                //     object_type,
-                //     size,
-                //     data,
-                //     position,
-                // }
+                (packfile::read_obj_offset_data(&objects, &mut cursor)?, size)
             }
             packfile::ObjectType::RefDelta(size) => {
-                let data = packfile::read_obj_ref_data(objects, &mut cursor)?;
-                todo!()
+                (packfile::read_obj_ref_data(&objects, &mut cursor)?, size)
             }
+        };
+
+        let object = ObjectEntry {
+            position,
+            object_type,
+            data,
+            size,
+            file_hash,
         };
 
         // Though we need to look up values by an exact value, until we get to 50k+ objects,
