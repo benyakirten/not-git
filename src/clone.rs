@@ -63,14 +63,75 @@ pub fn clone(config: CloneConfig) -> Result<Vec<ObjectEntry>, anyhow::Error> {
     let mut cursor = Cursor::new(&commit[20..]);
 
     for _ in 0..header.num_objects {
+        let position = cursor.position() as usize;
         let object_type = packfile::read_type_and_length(&mut cursor)?;
-        println!("{:?}", object_type);
-        let decoded_data = object_type.parse_data(&mut cursor)?;
-        let object = ObjectEntry {
-            object_type,
-            size: decoded_data.len(),
-            data: decoded_data,
+
+        let object = match object_type {
+            packfile::ObjectType::Commit(size) => {
+                let (data, file_hash) =
+                    packfile::decode_undeltified_data(FileType::Commit, &mut cursor)?;
+                ObjectEntry {
+                    object_type,
+                    size,
+                    data,
+                    position,
+                    file_hash,
+                }
+            }
+            packfile::ObjectType::Tree(size) => {
+                let (data, file_hash) =
+                    packfile::decode_undeltified_data(FileType::Tree, &mut cursor)?;
+                ObjectEntry {
+                    object_type,
+                    size,
+                    data,
+                    position,
+                    file_hash,
+                }
+            }
+            packfile::ObjectType::Blob(size) => {
+                let (data, file_hash) =
+                    packfile::decode_undeltified_data(FileType::Blob, &mut cursor)?;
+                ObjectEntry {
+                    object_type,
+                    size,
+                    data,
+                    position,
+                    file_hash,
+                }
+            }
+            packfile::ObjectType::Tag(size) => {
+                let (data, file_hash) =
+                    packfile::decode_undeltified_data(FileType::Tag, &mut cursor)?;
+                ObjectEntry {
+                    object_type,
+                    size,
+                    data,
+                    position,
+                    file_hash,
+                }
+            }
+            packfile::ObjectType::OfsDelta(size) => {
+                todo!()
+                // let data = packfile::read_obj_offset_data(&mut cursor)?;
+                // ObjectEntry {
+                //     object_type,
+                //     size,
+                //     data,
+                //     position,
+                // }
+            }
+            packfile::ObjectType::RefDelta(size) => {
+                let data = packfile::read_obj_ref_data(objects, &mut cursor)?;
+                todo!()
+            }
         };
+
+        // Though we need to look up values by an exact value, until we get to 50k+ objects,
+        // a linear search using a vector is more efficient than a hash table since the items are stored
+        // in a contiguous block of memory. That said, if we used a hash map, we should either
+        // need to look up values by position or by their hash.
+        // We could use two different hash maps, but I doubt the memory cost is worth it.
         objects.push(object);
     }
 

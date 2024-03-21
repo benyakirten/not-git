@@ -25,6 +25,8 @@ pub struct ObjectEntry {
     pub object_type: ObjectType,
     pub size: usize,
     pub data: Vec<u8>,
+    pub position: usize,
+    pub file_hash: FileHash,
 }
 
 impl PackFileHeader {
@@ -99,38 +101,50 @@ impl ObjectType {
             ObjectType::RefDelta(length) => *length,
         }
     }
-
-    pub fn parse_data(&self, mut cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, anyhow::Error> {
-        match self {
-            ObjectType::Commit(_) => decode_undeltified_data(FileType::Commit, &mut cursor),
-            ObjectType::Tree(_) => decode_undeltified_data(FileType::Tree, &mut cursor),
-            ObjectType::Blob(_) => decode_undeltified_data(FileType::Blob, &mut cursor),
-            ObjectType::Tag(_) => decode_undeltified_data(FileType::Tag, &mut cursor),
-            ObjectType::OfsDelta(_) => read_obj_offset_data(cursor),
-            ObjectType::RefDelta(_) => read_obj_ref_data(cursor),
-        }
-    }
 }
 
-fn decode_undeltified_data(
+pub fn decode_undeltified_data(
     file_type: FileType,
     cursor: &mut Cursor<&[u8]>,
-) -> Result<Vec<u8>, anyhow::Error> {
+) -> Result<(Vec<u8>, FileHash), anyhow::Error> {
     let mut data = read_next_zlib_data(cursor)?;
-    hash_object::hash_and_write_object(&file_type, &mut data)?;
-    Ok(data)
+    let hash = hash_object::hash_and_write_object(&file_type, &mut data)?;
+    Ok((data, hash))
 }
 
-fn read_obj_offset_data(mut cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, anyhow::Error> {
+pub fn read_obj_offset_data(
+    objects: Vec<ObjectEntry>,
+    cursor: &mut Cursor<&[u8]>,
+) -> Result<Vec<u8>, anyhow::Error> {
     // We need to read the offset from the packfile. The offset is variable-sized
     // but negative so we are guaranteed to have seen it before now.
-    let negative_offset = read_varint_bytes_from_cursor(cursor)?;
     // Then we need to find the object that starts at that position.
     // Once we have that file, then we can get the data delta.
+    let current_position = cursor.position();
+
+    // This will move the cursor ahead by the number of bytes in the varint
+    let negative_offset = read_varint_bytes(cursor)?;
+    let position = current_position - negative_offset as u64;
+    let object = objects
+        .iter()
+        .find(|object| object.position as u64 == position);
+
+    if object.is_none() {
+        return Err(anyhow::anyhow!(format!(
+            "Unable to find object with position {} in packfile",
+            position
+        )));
+    }
+
+    let deltafied_data = read_next_zlib_data(cursor)?;
+
     todo!()
 }
 
-fn read_obj_ref_data(mut cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, anyhow::Error> {
+pub fn read_obj_ref_data(
+    objects: Vec<ObjectEntry>,
+    cursor: &mut Cursor<&[u8]>,
+) -> Result<Vec<u8>, anyhow::Error> {
     let mut ref_sha: [u8; 20] = [0; 20];
     cursor.read_exact(&mut ref_sha)?;
 
@@ -139,7 +153,18 @@ fn read_obj_ref_data(mut cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, anyhow::
 
     let deltafied_data = read_next_zlib_data(cursor)?;
 
-    // Given the hash and the deltafied data, we can decipher the final data
+    let object = objects
+        .iter()
+        .find(|object| object.file_hash.full_hash() == hash.full_hash());
+
+    if object.is_none() {
+        return Err(anyhow::anyhow!(format!(
+            "Unable to find object with hash {} in packfile",
+            hash.full_hash()
+        )));
+    }
+
+    println!("Found object match: {:?}", object);
 
     todo!()
 }
@@ -165,7 +190,7 @@ pub fn read_type_and_length(cursor: &mut Cursor<&[u8]>) -> Result<ObjectType, an
     // Using a `usize` type limits us to files that are 2^61 bytes in size.
     // I hope whatever future person is passing around files that are 2 exabytes
     // in their git repo doesn't use this code.
-    let value = read_varint_bytes_from_cursor(cursor)?;
+    let value = read_varint_bytes(cursor)?;
 
     let object_type = get_object_type_bits(value) as u8;
     let size = get_object_size(value);
@@ -227,9 +252,7 @@ fn keep_bits(value: usize, bits: u8) -> usize {
 /// We receive a variable-sized encoded value from the packfile. We want to get all the bytes
 /// that represent the type and length of the object. Using a cursor allows us to advance
 /// that distance without keeping track of the current position in the buffer.
-pub fn read_varint_bytes_from_cursor(
-    packfile_reader: &mut Cursor<&[u8]>,
-) -> Result<usize, anyhow::Error> {
+pub fn read_varint_bytes(packfile_reader: &mut Cursor<&[u8]>) -> Result<usize, anyhow::Error> {
     let mut value = 0;
     let mut length = 0;
 
