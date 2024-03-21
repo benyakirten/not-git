@@ -1,4 +1,4 @@
-use std::io::{Cursor, Read};
+use std::io::{Cursor, ErrorKind, Read};
 
 use anyhow::Context;
 use flate2::bufread::ZlibDecoder;
@@ -6,8 +6,9 @@ use flate2::bufread::ZlibDecoder;
 use crate::{file_hash::FileHash, hash_object, ls_tree::FileType};
 
 const VARINT_ENCODING_BITS: u8 = 7;
-// 0b1000_0000
-const VARINT_CONTINUE_FLAG: u8 = 1 << VARINT_ENCODING_BITS;
+
+// 0b1000_0000 - (byte) & MSB_MASK returns the bit value of the first bit
+const MSB_MASK: u8 = 1 << VARINT_ENCODING_BITS;
 
 const TYPE_BITS: u8 = 3;
 // 7 - 3 = 4 bits
@@ -27,6 +28,24 @@ pub struct ObjectEntry {
     pub data: Vec<u8>,
     pub position: usize,
     pub file_hash: FileHash,
+}
+
+pub enum DeltaInstruction {
+    Copy(CopyInstruction),
+    Insert(InsertInstruction),
+    End,
+}
+
+pub struct CopyInstruction {
+    // Offset of the first byte to copy.
+    pub offset: usize,
+    // Number of bytes to copy.
+    pub size: usize,
+}
+
+pub struct InsertInstruction {
+    // Number of bytes to copy from delta data to the target data
+    pub size: u8,
 }
 
 impl PackFileHeader {
@@ -172,7 +191,77 @@ pub fn read_obj_ref_data(
 }
 
 fn apply_deltas(target: &ObjectEntry, delta_data: Vec<u8>) -> Result<Vec<u8>, anyhow::Error> {
+    let mut cursor = Cursor::new(delta_data.as_slice());
+
+    let source_length = read_varint_bytes(&mut cursor)?;
+    let final_length = read_varint_bytes(&mut cursor)?;
+
+    let mut data = Vec::with_capacity(final_length);
+
+    println!("Source length: {}", source_length);
+    if source_length != target.size {
+        // TODO: Log inconsistent sizes
+    }
+
+    loop {
+        let _instruction = read_instruction(&mut cursor)?;
+        let _new_data = match _instruction {
+            DeltaInstruction::Copy(copy_instruction) => {
+                apply_copy_instruction(&mut cursor, copy_instruction)
+            }
+            DeltaInstruction::Insert(insert_instruction) => {
+                apply_insert_instruction(&mut cursor, insert_instruction)
+            }
+            DeltaInstruction::End => break,
+        }?;
+
+        data.extend(_new_data);
+        // When does the loop end?
+    }
+
+    Ok(data)
+}
+
+fn read_instruction(cursor: &mut Cursor<&[u8]>) -> Result<DeltaInstruction, anyhow::Error> {
+    let mut bytes: [u8; 1] = [0];
+    match cursor.read_exact(&mut bytes) {
+        Ok(_) => {}
+        // We have finihed reading instructions when we get to the EOF
+        Err(e) if e.kind() == ErrorKind::UnexpectedEof => return Ok(DeltaInstruction::End),
+        Err(e) => return Err(e.into()),
+    };
+
+    let [byte] = bytes;
+
+    // Test if the most significant bit (first) is 0 or 1 by masking all bits except the first
+    // A 0 means it's an insert instruction, a 1 means it's a copy instruction
+    let instruction: DeltaInstruction = if byte & MSB_MASK == 0 {
+        // Get the last 7 bits of the byte
+        let size = byte & !MSB_MASK;
+        let insert_instruction = InsertInstruction { size };
+        DeltaInstruction::Insert(insert_instruction)
+    } else {
+        todo!();
+    };
+
+    Ok(instruction)
+}
+
+fn apply_copy_instruction(
+    cursor: &mut Cursor<&[u8]>,
+    instruction: CopyInstruction,
+) -> Result<Vec<u8>, anyhow::Error> {
     todo!()
+}
+
+fn apply_insert_instruction(
+    cursor: &mut Cursor<&[u8]>,
+    instruction: InsertInstruction,
+) -> Result<Vec<u8>, anyhow::Error> {
+    let mut data = vec![0; instruction.size as usize];
+    cursor.read_exact(&mut data)?;
+
+    Ok(data)
 }
 
 fn read_next_zlib_data(mut cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, anyhow::Error> {
@@ -289,16 +378,16 @@ pub fn read_varint_byte(packfile_reader: &mut Cursor<&[u8]>) -> Result<(u8, bool
 
     let [byte] = bytes;
 
-    // !VARINT_CONTINUE_FLAG is the same as 0b0111_1111
+    // !MSB_MASK is the same as 0b0111_1111
     // We use it to block the first bit of the byte (the continuation flag)
     // because it's 0 so no matter what, it & a binary will be 0
     // Therefore we get the value of last 7 bits from the byte.
-    let value = byte & !VARINT_CONTINUE_FLAG;
+    let value = byte & !MSB_MASK;
 
     // We check if the continuation flag is 0 or 1.
-    // b1000_0000 (VARINT_CONTINUE_FLAG) & b1xxx_xxxx will equal 1
-    // VARINT_CONTINUE_FLAG & b0xxx_xxxx will equal 0
-    let more_bytes = byte & VARINT_CONTINUE_FLAG != 0;
+    // b1000_0000 (MSB_MASK) & b1xxx_xxxx will equal 1
+    // MSB_MASK & b0xxx_xxxx will equal 0
+    let more_bytes = byte & MSB_MASK != 0;
 
     Ok((value, more_bytes))
 }
