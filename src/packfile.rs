@@ -136,7 +136,9 @@ pub fn read_obj_offset_data(
         )));
     }
 
-    let deltafied_data = read_next_zlib_data(cursor)?;
+    let delta_data = read_next_zlib_data(cursor)?;
+
+    apply_deltas(&object.unwrap(), delta_data)?;
 
     todo!()
 }
@@ -151,7 +153,7 @@ pub fn read_obj_ref_data(
     let hash = hex::encode(ref_sha);
     let hash = FileHash::from_sha(hash)?;
 
-    let deltafied_data = read_next_zlib_data(cursor)?;
+    let delta_data = read_next_zlib_data(cursor)?;
 
     let object = objects
         .iter()
@@ -164,8 +166,12 @@ pub fn read_obj_ref_data(
         )));
     }
 
-    println!("Found object match: {:?}", object);
+    apply_deltas(&object.unwrap(), delta_data)?;
 
+    todo!()
+}
+
+fn apply_deltas(target: &ObjectEntry, delta_data: Vec<u8>) -> Result<Vec<u8>, anyhow::Error> {
     todo!()
 }
 
