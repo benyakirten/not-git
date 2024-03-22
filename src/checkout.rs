@@ -11,8 +11,10 @@ pub fn checkout_command(args: &[String]) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-pub fn load_commit(config: CheckoutConfig) -> Result<(), anyhow::Error> {
-    // let tree = ls_tree::
+pub fn checkout_files(config: CheckoutConfig) -> Result<(), anyhow::Error> {
+    if config.branch_name.starts_with("remote") {
+        // TODO: Download and load the remote branch
+    }
     Ok(())
 }
 

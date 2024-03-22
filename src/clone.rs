@@ -1,7 +1,4 @@
-use std::{
-    io::{Cursor, Read},
-    path::PathBuf,
-};
+use std::{io::Cursor, path::PathBuf};
 
 use bytes::Bytes;
 
@@ -39,7 +36,18 @@ pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
         "Cloned {} objects into repository successfully.",
         objects.len()
     );
-    println!("On branch {}", head_ref.branch);
+
+    let branch_name = if head_ref.branch.starts_with("refs/heads/") {
+        head_ref
+            .branch
+            .split_once("refs/heads/")
+            .unwrap()
+            .1
+            .to_string()
+    } else {
+        head_ref.branch.to_string()
+    };
+    println!("On branch '{}'", branch_name);
 
     Ok(())
 }
@@ -63,7 +71,6 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<ObjectEntry>), anyhow::
 
     // TODO: Write all other refs into the `.git/packed-refs` file.
     let head_ref = refs.remove(head_ref_index);
-    let commit = get_commit(&client, &config.url, &head_ref.commit_hash)?;
 
     // TODO: Write all files to a temporary directory
     // If successful, move all files and folders over to .git and delete temporary directory
@@ -93,6 +100,17 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<ObjectEntry>), anyhow::
 
     update_refs::update_refs(update_ref_config)?;
 
+    let objects = download_commit(&client, &config.url, &head_ref.commit_hash)?;
+
+    Ok((head_ref, objects))
+}
+
+pub fn download_commit(
+    client: &Client,
+    url: &str,
+    hash: &FileHash,
+) -> Result<Vec<ObjectEntry>, anyhow::Error> {
+    let commit = get_commit(&client, url, hash)?;
     let header = PackFileHeader::from_bytes(commit[..20].to_vec())?;
 
     let mut objects: Vec<ObjectEntry> = vec![];
@@ -144,10 +162,7 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<ObjectEntry>), anyhow::
         objects.push(object);
     }
 
-    let mut rest_of_data = vec![];
-    cursor.read_to_end(&mut rest_of_data)?;
-
-    Ok((head_ref, objects))
+    Ok(objects)
 }
 
 fn get_commit(client: &Client, url: &str, commit_hash: &FileHash) -> Result<Bytes, anyhow::Error> {
