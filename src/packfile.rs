@@ -295,9 +295,8 @@ fn get_copy_instruction_data(
             // Move the read byte over by 8 bits incrementally
             // because we're reading this in little-endian order
             // e.g. 0b1101_1010 will be read as 0b1011_0110 0b0000_0000
-            let byte = byte << (index * 8);
-
-            value |= byte as usize;
+            // Then we add the the bits to the value
+            value |= (byte as usize) << (index * 8);
         }
 
         // Move over the instruction bits by 1
