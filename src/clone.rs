@@ -6,6 +6,7 @@ use reqwest::blocking::Client;
 use reqwest::header::CONTENT_TYPE;
 
 use crate::{
+    checkout::{self, CheckoutConfig},
     file_hash::FileHash,
     init,
     ls_tree::FileType,
@@ -37,19 +38,18 @@ pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
         objects.len()
     );
 
-    let branch_name = if head_ref.branch.starts_with("refs/heads/") {
-        head_ref
-            .branch
-            .split_once("refs/heads/")
-            .unwrap()
-            .1
-            .to_string()
-    } else {
-        head_ref.branch.to_string()
-    };
+    let branch_name = get_branch_name(&head_ref.branch);
     println!("On branch '{}'", branch_name);
 
     Ok(())
+}
+
+fn get_branch_name(branch: &str) -> String {
+    if branch.starts_with("refs/heads/") {
+        branch.split_once("refs/heads/").unwrap().1.to_string()
+    } else {
+        branch.to_string()
+    }
 }
 
 pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<ObjectEntry>), anyhow::Error> {
@@ -100,6 +100,10 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<ObjectEntry>), anyhow::
     update_refs::update_refs(update_ref_config)?;
 
     let objects = download_commit(&client, &config.url, &head_ref.commit_hash)?;
+    let checkout_config = CheckoutConfig {
+        branch_name: get_branch_name(&head_ref.branch),
+    };
+    checkout::checkout_branch(&checkout_config)?;
 
     Ok((head_ref, objects))
 }

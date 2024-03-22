@@ -17,13 +17,13 @@ pub struct CheckoutConfig {
 
 pub fn checkout_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_checkout_config(args)?;
-    checkout_files(&config)?;
+    checkout_branch(&config)?;
 
     println!("Switched to branch '{}'", config.branch_name);
     Ok(())
 }
 
-pub fn checkout_files(config: &CheckoutConfig) -> Result<usize, anyhow::Error> {
+pub fn checkout_branch(config: &CheckoutConfig) -> Result<usize, anyhow::Error> {
     let initial_tree = get_initial_tree(config)?;
     create_tree(initial_tree, vec!["copy_folder"])
 }
