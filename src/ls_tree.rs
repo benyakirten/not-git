@@ -2,9 +2,9 @@ use std::{os::unix::fs::PermissionsExt, path::PathBuf};
 
 use crate::{file_hash::FileHash, utils};
 
-struct LsTreeConfig {
-    file_hash: FileHash,
-    flag: LsTreeFlag,
+pub struct LsTreeConfig {
+    pub file_hash: FileHash,
+    pub flag: LsTreeFlag,
 }
 
 pub enum LsTreeFlag {
@@ -29,13 +29,14 @@ pub enum FileType {
     Executable,
     Symlink,
     Commit,
+    Tag,
 }
 
 impl FileType {
     pub fn from_mode(mode: &str) -> Result<FileType, anyhow::Error> {
         match mode {
             "100644" => Ok(FileType::Blob),
-            "040000" => Ok(FileType::Tree),
+            "040000" | "40000" => Ok(FileType::Tree),
             "100755" => Ok(FileType::Executable),
             "120000" => Ok(FileType::Symlink),
             _ => Err(anyhow::anyhow!(format!(
@@ -52,6 +53,7 @@ impl FileType {
             FileType::Executable => "100755",
             FileType::Symlink => "120000",
             FileType::Commit => "160000",
+            FileType::Tag => "",
         }
     }
 
@@ -62,6 +64,7 @@ impl FileType {
             FileType::Executable => "executable".to_string(),
             FileType::Symlink => "symlink".to_string(),
             FileType::Commit => "commit".to_string(),
+            FileType::Tag => "tag".to_string(),
         }
     }
 
@@ -83,9 +86,9 @@ impl FileType {
 
 #[derive(Debug)]
 pub struct TreeFile {
-    file_type: FileType,
-    file_name: String,
-    sha: String,
+    pub file_type: FileType,
+    pub file_name: String,
+    pub hash: FileHash,
 }
 
 pub fn list_tree_command(args: &[String]) -> Result<(), anyhow::Error> {
@@ -117,7 +120,7 @@ pub fn stringify_list_tree(
                         "{} {} {}\t{}\n",
                         tree_file.file_type.to_number_string(),
                         tree_file.file_type.to_readable_string(),
-                        tree_file.sha,
+                        tree_file.hash.full_hash(),
                         tree_file.file_name,
                     )
                 })
@@ -175,13 +178,15 @@ fn parse_until_next_file(body: Vec<u8>) -> Result<(TreeFile, Vec<u8>), anyhow::E
         (rest.as_slice(), empty_array)
     };
 
-    let sha = hex::encode(sha_bytes);
+    let hash = hex::encode(sha_bytes);
+    let hash = FileHash::from_sha(hash)?;
+
     let file_type: FileType = FileType::from_mode(mode)?;
 
     let tree_file = TreeFile {
         file_type,
         file_name: file_name.to_string(),
-        sha,
+        hash,
     };
 
     Ok((tree_file, rest.to_vec()))

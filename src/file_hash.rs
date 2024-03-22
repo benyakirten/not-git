@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct FileHash {
     pub prefix: String,
     pub hash: String,

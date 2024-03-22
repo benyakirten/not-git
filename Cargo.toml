@@ -14,3 +14,4 @@ clap = { version = "4.0.32", features = ["derive"] }
 hex = "0.4.3"
 anyhow = "1.0.59"
 thiserror = "1.0.32"
+bytes = "1.3.0"

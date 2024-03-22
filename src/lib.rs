@@ -1,11 +1,14 @@
 pub mod branch;
 pub mod cat_file;
+pub mod checkout;
+pub mod clone;
 pub mod commit;
 pub mod commit_tree;
 pub mod file_hash;
 pub mod hash_object;
 pub mod init;
 pub mod ls_tree;
+pub mod packfile;
 pub mod update_refs;
 pub mod utils;
 pub mod write_tree;
