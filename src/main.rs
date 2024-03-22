@@ -1,8 +1,8 @@
 use std::env;
 
 use not_git::{
-    branch, cat_file, clone, commit, commit_tree, hash_object, init, ls_tree, update_refs,
-    write_tree,
+    branch, cat_file, checkout, clone, commit, commit_tree, hash_object, init, ls_tree,
+    update_refs, write_tree,
 };
 
 fn main() {
@@ -25,6 +25,7 @@ fn main() {
         "branch" => branch::branch_command(&args[2..]),
         "commit" => commit::commit_command(&args[2..]),
         "clone" => clone::clone_command(&args[2..]),
+        "checkout" => checkout::checkout_command(&args[2..]),
         _ => Err(anyhow::anyhow!(format!("Unknown command {}", command))),
     };
 

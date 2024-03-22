@@ -19,10 +19,7 @@ pub fn commit_tree_command(args: &[String]) -> Result<(), anyhow::Error> {
 
 pub fn commit_tree(config: CommitTreeConfig) -> Result<FileHash, anyhow::Error> {
     let mut contents = create_file_contents(config)?;
-    let mut header = get_commit_header(&contents);
-
-    header.append(&mut contents);
-    let hash = hash_object::hash_and_write_object(&FileType::Commit, &mut header)?;
+    let hash = hash_object::hash_and_write_object(&FileType::Commit, &mut contents)?;
 
     Ok(hash)
 }
@@ -47,11 +44,6 @@ fn create_file_contents(config: CommitTreeConfig) -> Result<Vec<u8>, anyhow::Err
     )?;
     writeln!(&mut contents, "{}", config.message)?;
     Ok(contents)
-}
-
-fn get_commit_header(contents: &[u8]) -> Vec<u8> {
-    let header = format!("commit {}\0", contents.len());
-    header.as_bytes().to_vec()
 }
 
 fn parse_commit_tree_config(args: &[String]) -> Result<CommitTreeConfig, anyhow::Error> {
