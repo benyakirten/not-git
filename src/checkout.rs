@@ -6,6 +6,8 @@ pub struct CheckoutConfig {
 
 pub fn checkout_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_checkout_config(args)?;
+
+    println!("Switched to branch '{}'", config.branch_name);
     Ok(())
 }
 
