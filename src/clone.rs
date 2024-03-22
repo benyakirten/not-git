@@ -91,6 +91,8 @@ pub fn clone(config: CloneConfig) -> Result<Vec<ObjectEntry>, anyhow::Error> {
             }
         };
 
+        println!("HASH {}", file_hash.full_hash());
+
         let object = ObjectEntry {
             position,
             object_type,

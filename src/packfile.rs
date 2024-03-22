@@ -132,8 +132,8 @@ pub fn decode_undeltified_data(
     file_type: FileType,
     cursor: &mut Cursor<&[u8]>,
 ) -> Result<(Vec<u8>, FileHash), anyhow::Error> {
-    let mut data = read_next_zlib_data(cursor)?;
-    let hash = hash_object::hash_and_write_object(&file_type, &mut data)?;
+    let data = read_next_zlib_data(cursor)?;
+    let hash = hash_object::hash_and_write_object(&file_type, &mut data.clone())?;
     Ok((data, hash))
 }
 
@@ -193,7 +193,7 @@ fn compile_file_from_deltas(
     object: &ObjectEntry,
 ) -> Result<(Vec<u8>, FileHash), anyhow::Error> {
     let delta_data = read_next_zlib_data(cursor)?;
-    let mut file_contents = apply_deltas(&object, delta_data)?;
+    let file_contents = apply_deltas(&object, delta_data)?;
     let file_type = match get_object_file_type(&object.object_type) {
         Ok(file_type) => file_type,
         Err(e) => {
@@ -202,7 +202,7 @@ fn compile_file_from_deltas(
         }
     };
 
-    let hash = hash_object::hash_and_write_object(&file_type, &mut file_contents)?;
+    let hash = hash_object::hash_and_write_object(&file_type, &mut file_contents.clone())?;
 
     Ok((file_contents, hash))
 }
@@ -215,7 +215,6 @@ fn apply_deltas(target: &ObjectEntry, delta_data: Vec<u8>) -> Result<Vec<u8>, an
 
     let mut data = Vec::with_capacity(final_length);
 
-    println!("Source length: {}", source_length);
     if source_length != target.size {
         // TODO: Log inconsistent sizes
     }
