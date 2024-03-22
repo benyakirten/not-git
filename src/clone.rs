@@ -7,7 +7,6 @@ use reqwest::header::CONTENT_TYPE;
 
 use crate::{
     file_hash::FileHash,
-    hash_object,
     ls_tree::FileType,
     packfile::{self, ObjectEntry, PackFileHeader},
 };
@@ -66,7 +65,7 @@ pub fn clone(config: CloneConfig) -> Result<Vec<ObjectEntry>, anyhow::Error> {
         let position = cursor.position() as usize;
         let object_type = packfile::read_type_and_length(&mut cursor)?;
 
-        let ((data, file_hash), size) = match object_type {
+        let ((data, file_hash, file_type), size) = match object_type {
             packfile::ObjectType::Commit(size) => (
                 packfile::decode_undeltified_data(FileType::Commit, &mut cursor)?,
                 size,
@@ -99,6 +98,7 @@ pub fn clone(config: CloneConfig) -> Result<Vec<ObjectEntry>, anyhow::Error> {
             data,
             size,
             file_hash,
+            file_type,
         };
 
         // Though we need to look up values by an exact value, until we get to 50k+ objects,

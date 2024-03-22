@@ -34,6 +34,7 @@ pub struct ObjectEntry {
     pub data: Vec<u8>,
     pub position: usize,
     pub file_hash: FileHash,
+    pub file_type: FileType,
 }
 
 pub enum DeltaInstruction {
@@ -131,16 +132,16 @@ impl ObjectType {
 pub fn decode_undeltified_data(
     file_type: FileType,
     cursor: &mut Cursor<&[u8]>,
-) -> Result<(Vec<u8>, FileHash), anyhow::Error> {
+) -> Result<(Vec<u8>, FileHash, FileType), anyhow::Error> {
     let data = read_next_zlib_data(cursor)?;
     let hash = hash_object::hash_and_write_object(&file_type, &mut data.clone())?;
-    Ok((data, hash))
+    Ok((data, hash, file_type))
 }
 
 pub fn read_obj_offset_data(
     objects: &Vec<ObjectEntry>,
     cursor: &mut Cursor<&[u8]>,
-) -> Result<(Vec<u8>, FileHash), anyhow::Error> {
+) -> Result<(Vec<u8>, FileHash, FileType), anyhow::Error> {
     // We need to read the offset from the packfile. The offset is variable-sized
     // but negative so we are guaranteed to have seen it before now.
     // Then we need to find the object that starts at that position.
@@ -167,7 +168,7 @@ pub fn read_obj_offset_data(
 pub fn read_obj_ref_data(
     objects: &Vec<ObjectEntry>,
     cursor: &mut Cursor<&[u8]>,
-) -> Result<(Vec<u8>, FileHash), anyhow::Error> {
+) -> Result<(Vec<u8>, FileHash, FileType), anyhow::Error> {
     let mut ref_sha: [u8; 20] = [0; 20];
     cursor.read_exact(&mut ref_sha)?;
 
@@ -191,20 +192,14 @@ pub fn read_obj_ref_data(
 fn compile_file_from_deltas(
     cursor: &mut Cursor<&[u8]>,
     object: &ObjectEntry,
-) -> Result<(Vec<u8>, FileHash), anyhow::Error> {
+) -> Result<(Vec<u8>, FileHash, FileType), anyhow::Error> {
     let delta_data = read_next_zlib_data(cursor)?;
     let file_contents = apply_deltas(&object, delta_data)?;
-    let file_type = match get_object_file_type(&object.object_type) {
-        Ok(file_type) => file_type,
-        Err(e) => {
-            println!("Unable to identify file type, defaulting to blob: {}", e);
-            FileType::Blob
-        }
-    };
+    let file_type = &object.file_type;
 
     let hash = hash_object::hash_and_write_object(&file_type, &mut file_contents.clone())?;
 
-    Ok((file_contents, hash))
+    Ok((file_contents, hash, file_type.clone()))
 }
 
 fn apply_deltas(target: &ObjectEntry, delta_data: Vec<u8>) -> Result<Vec<u8>, anyhow::Error> {
@@ -469,18 +464,4 @@ pub fn read_byte(cursor: &mut Cursor<&[u8]>) -> Result<u8, std::io::Error> {
     let mut bytes: [u8; 1] = [0];
     cursor.read_exact(&mut bytes)?;
     Ok(bytes[0])
-}
-
-fn get_object_file_type(object_type: &ObjectType) -> Result<FileType, anyhow::Error> {
-    match object_type {
-        ObjectType::Commit(_) => Ok(FileType::Commit),
-        ObjectType::Tree(_) => Ok(FileType::Tree),
-        ObjectType::Blob(_) => Ok(FileType::Blob),
-        ObjectType::Tag(_) => Ok(FileType::Tag),
-        // Can a ref/ofs object point to another ref/ofs object?
-        // TODO: Encode that information in the object so we can
-        // recursively find the original reference
-        ObjectType::OfsDelta(_) => Err(anyhow::anyhow!("Invalid object type: OfsDelta")),
-        ObjectType::RefDelta(_) => Err(anyhow::anyhow!("Invalid object type: RefDelta")),
-    }
 }
