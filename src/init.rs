@@ -12,6 +12,7 @@ pub fn init_command(args: &[String]) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+// TODO: Allow the parent directory to be customized
 pub fn create_directories(config: InitConfig) -> Result<(), anyhow::Error> {
     fs::create_dir_all(PathBuf::from("not-git/objects"))?;
     fs::create_dir_all(PathBuf::from("not-git/refs/heads"))?;

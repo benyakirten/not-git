@@ -15,7 +15,7 @@ fn main() {
 
     let command = args[1].to_string();
     let result = match command.as_str() {
-        "init" => init::create_directories(&args[2..]),
+        "init" => init::init_command(&args[2..]),
         "cat-file" => cat_file::cat(&args[2..]),
         "hash-object" => hash_object::hash_object_command(&args[2..]),
         "ls-tree" => ls_tree::list_tree_command(&args[2..]),
