@@ -1,4 +1,7 @@
-use std::{io::Cursor, path::PathBuf};
+use std::{
+    io::{Cursor, Read},
+    path::PathBuf,
+};
 
 use bytes::Bytes;
 
@@ -7,8 +10,10 @@ use reqwest::header::CONTENT_TYPE;
 
 use crate::{
     file_hash::FileHash,
+    init,
     ls_tree::FileType,
     packfile::{self, ObjectEntry, PackFileHeader},
+    update_refs,
 };
 
 pub struct CloneConfig {
@@ -17,45 +22,70 @@ pub struct CloneConfig {
 }
 
 #[derive(Debug)]
-struct GitRef {
-    mode: String,
-    commit_hash: FileHash,
-    branch: String,
-    is_head: bool,
+pub struct GitRef {
+    #[allow(dead_code)]
+    pub mode: String,
+    pub commit_hash: FileHash,
+    #[allow(dead_code)]
+    pub branch: String,
+    pub is_head: bool,
 }
 
 pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_clone_config(args)?;
-    clone(config)?;
+    let (head_ref, objects) = clone(config)?;
+
+    println!(
+        "Cloned {} objects into repository successfully.",
+        objects.len()
+    );
+    println!("On branch {}", head_ref.branch);
+
     Ok(())
 }
 
-pub fn clone(config: CloneConfig) -> Result<Vec<ObjectEntry>, anyhow::Error> {
+pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<ObjectEntry>), anyhow::Error> {
     // https://www.git-scm.com/docs/http-protocol
     // We could use async functions or we could run this as single-threaded with blocking calls
     // We will use blocking calls for simplicity/ease of use. I don't think there's a part that
     // would benefit from async calls yet.
     let client = Client::new();
-    let refs = discover_references(
+    let mut refs = discover_references(
         &client,
         &format!("{}/info/refs", config.url),
         "git-upload-pack",
     )?;
 
-    // TODO: Write all other refs into the `.git/packed-refs` file.
-
-    let head_ref = refs
+    let head_ref_index = refs
         .iter()
-        .find(|r| r.is_head)
+        .position(|r| r.is_head)
         .ok_or_else(|| anyhow::anyhow!("No HEAD ref found"))?;
 
+    // TODO: Write all other refs into the `.git/packed-refs` file.
+    let head_ref = refs.remove(head_ref_index);
     let commit = get_commit(&client, &config.url, &head_ref.commit_hash)?;
+
+    // TODO: Write all files to a temporary directory
+    // If successful, move all files and folders over to .git and delete temporary directory
 
     // Header will contain the following:
     // 1. 0008NAK\n - because we have ended negotiation
     // 2. 4-byte signature which can be stringified to PACK
     // 3. 4-byte version number - always 2 or 3
     // 4. 4-byte number of objects
+
+    let init_config = init::InitConfig {
+        commit_name: head_ref.branch.to_string(),
+    };
+    init::create_directories(init_config)?;
+
+    let update_ref_config = update_refs::UpdateRefsConfig {
+        commit_hash: FileHash::from_sha(head_ref.commit_hash.full_hash())?,
+        path: PathBuf::from(head_ref.branch.to_string()),
+    };
+
+    update_refs::update_refs(update_ref_config)?;
+
     let header = PackFileHeader::from_bytes(commit[..20].to_vec())?;
 
     let mut objects: Vec<ObjectEntry> = vec![];
@@ -90,8 +120,6 @@ pub fn clone(config: CloneConfig) -> Result<Vec<ObjectEntry>, anyhow::Error> {
             }
         };
 
-        println!("HASH {}", file_hash.full_hash());
-
         let object = ObjectEntry {
             position,
             object_type,
@@ -109,7 +137,10 @@ pub fn clone(config: CloneConfig) -> Result<Vec<ObjectEntry>, anyhow::Error> {
         objects.push(object);
     }
 
-    Ok(objects)
+    let mut rest_of_data = vec![];
+    cursor.read_to_end(&mut rest_of_data)?;
+
+    Ok((head_ref, objects))
 }
 
 fn get_commit(client: &Client, url: &str, commit_hash: &FileHash) -> Result<Bytes, anyhow::Error> {
@@ -281,8 +312,4 @@ fn parse_clone_config(args: &[String]) -> Result<CloneConfig, anyhow::Error> {
     };
 
     Ok(CloneConfig { url, path })
-}
-
-fn parse_objects(num_object: u32) -> Result<(), anyhow::Error> {
-    todo!()
 }
