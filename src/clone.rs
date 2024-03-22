@@ -69,7 +69,6 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<ObjectEntry>), anyhow::
         .position(|r| r.is_head)
         .ok_or_else(|| anyhow::anyhow!("No HEAD ref found"))?;
 
-    // TODO: Write all other refs into the `.git/packed-refs` file.
     let head_ref = refs.remove(head_ref_index);
 
     // TODO: Write all files to a temporary directory
