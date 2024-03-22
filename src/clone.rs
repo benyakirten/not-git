@@ -79,9 +79,16 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<ObjectEntry>), anyhow::
     };
     init::create_directories(init_config)?;
 
+    // The whole ref name is ref/heads/{branch_name} - we want the last part
+    let head_path = head_ref
+        .branch
+        .split("/")
+        .last()
+        .ok_or_else(|| anyhow::anyhow!("Unable to parse head branch name"))?;
+
     let update_ref_config = update_refs::UpdateRefsConfig {
         commit_hash: FileHash::from_sha(head_ref.commit_hash.full_hash())?,
-        path: PathBuf::from(head_ref.branch.to_string()),
+        path: PathBuf::from(head_path),
     };
 
     update_refs::update_refs(update_ref_config)?;
