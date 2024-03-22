@@ -103,6 +103,7 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<ObjectEntry>), anyhow::
     let checkout_config = CheckoutConfig {
         branch_name: get_branch_name(&head_ref.branch),
     };
+
     checkout::checkout_branch(&checkout_config)?;
 
     Ok((head_ref, objects))
