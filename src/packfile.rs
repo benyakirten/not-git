@@ -296,7 +296,8 @@ fn get_copy_instruction_data(
             // because we're reading this in little-endian order
             // e.g. 0b1101_1010 will be read as 0b1011_0110 0b0000_0000
             // Then we add the the bits to the value
-            value |= (byte as usize) << (index * 8);
+            let byte_value = (byte as usize) << (index * 8);
+            value |= byte_value;
         }
 
         // Move over the instruction bits by 1
@@ -425,7 +426,11 @@ pub fn read_varint_bytes(packfile_reader: &mut Cursor<&[u8]>) -> Result<usize, a
         // If we get 0b0001000 in the first 7 bits then 0b0101010 in the next 7 bits
         // Then we should get 0b0101010_0001000 - note these are group of 7 bits
         // The leftmost bits should be from the 7 rightmost bits of the most recently read byte
-        value |= (byte_value as usize) << length;
+        let byte_value = (byte_value as usize) << length;
+
+        // Add it to to value on the right side
+        value |= byte_value;
+
         if !more_bytes {
             return Ok(value);
         }
