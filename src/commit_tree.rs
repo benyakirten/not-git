@@ -38,8 +38,7 @@ fn create_file_contents(config: CommitTreeConfig) -> Result<Vec<u8>, anyhow::Err
     )?;
     writeln!(
         &mut contents,
-        "committer {}",
-        "Ben Horowitz <benyakir.horowitz@gmail.com>"
+        "committer Ben Horowitz <benyakir.horowitz@gmail.com>",
     )?;
     writeln!(&mut contents, "{}", config.message)?;
     Ok(contents)
