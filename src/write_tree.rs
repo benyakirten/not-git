@@ -75,7 +75,7 @@ fn build_tree_from_path(path: PathBuf) -> Result<Vec<TreeFile>, anyhow::Error> {
         };
 
         let sha = match tree_file_type {
-            TreeFileType::Error(_) => "".to_string(),
+            TreeFileType::Error(e) => return Err(e),
             TreeFileType::Other(file_type, path) => {
                 let mut file_contents = utils::read_from_file(path)?;
                 let hash = hash_object::hash_and_write_object(&file_type, &mut file_contents)?;
