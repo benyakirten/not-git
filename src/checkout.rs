@@ -27,8 +27,8 @@ pub fn checkout_branch(config: &CheckoutConfig) -> Result<usize, anyhow::Error> 
     let initial_tree = get_initial_tree(config)?;
 
     // TODO: Add parameter to copy all data to a folder.
-    fs::create_dir("copy_folder")?;
-    create_tree(initial_tree, vec!["copy_folder"])
+    fs::create_dir("clone_folder")?;
+    create_tree(initial_tree, vec!["clone_folder"])
 }
 
 fn create_tree(
