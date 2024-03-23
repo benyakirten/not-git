@@ -1,3 +1,5 @@
+![Unit Tests](https://github.com/benyakirten/not-git/actions/workflows/general.yml/badge.svg)
+
 # What am I looking at?
 
 Based off of the [CodeCrafters Build your own Git](https://app.codecrafters.io/courses/git/overview) challenge, this is an implementation of a few of Git's more basic properties. I did this because I typically have worked mostly on web-based projects, and I wanted to try something different. Not only that, but I got some practice with Rust and have got much more experience with bitwise operators (which almost never come up in JavaScript-related technologies). I made the following additions and changes:
