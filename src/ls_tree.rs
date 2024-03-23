@@ -136,7 +136,7 @@ pub fn parse_tree_files(decoded_content: Vec<u8>) -> Result<Vec<TreeFile>, anyho
 
     let (_, mut body) = split_at_next_empty_byte(decoded_content)?;
 
-    while body.len() > 0 {
+    while !body.is_empty() {
         let (tree_file, rest) = parse_until_next_file(body)?;
         tree_files.push(tree_file);
         body = rest;
