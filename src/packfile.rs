@@ -139,7 +139,7 @@ pub fn decode_undeltified_data(
 }
 
 pub fn read_obj_offset_data(
-    objects: &Vec<ObjectEntry>,
+    objects: &[ObjectEntry],
     cursor: &mut Cursor<&[u8]>,
 ) -> Result<(Vec<u8>, FileHash, FileType), anyhow::Error> {
     // We need to read the offset from the packfile. The offset is variable-sized
@@ -166,7 +166,7 @@ pub fn read_obj_offset_data(
 }
 
 pub fn read_obj_ref_data(
-    objects: &Vec<ObjectEntry>,
+    objects: &[ObjectEntry],
     cursor: &mut Cursor<&[u8]>,
 ) -> Result<(Vec<u8>, FileHash, FileType), anyhow::Error> {
     let mut ref_sha: [u8; 20] = [0; 20];
@@ -194,12 +194,11 @@ fn compile_file_from_deltas(
     object: &ObjectEntry,
 ) -> Result<(Vec<u8>, FileHash, FileType), anyhow::Error> {
     let delta_data = read_next_zlib_data(cursor)?;
-    let file_contents = apply_deltas(&object, delta_data)?;
-    let file_type = &object.file_type;
+    let file_contents = apply_deltas(object, delta_data)?;
 
-    let hash = hash_object::hash_and_write_object(&file_type, &mut file_contents.clone())?;
+    let hash = hash_object::hash_and_write_object(&object.file_type, &mut file_contents.clone())?;
 
-    Ok((file_contents, hash, file_type.clone()))
+    Ok((file_contents, hash, object.file_type.clone()))
 }
 
 fn apply_deltas(target: &ObjectEntry, delta_data: Vec<u8>) -> Result<Vec<u8>, anyhow::Error> {
@@ -377,7 +376,7 @@ fn get_object_size(value: usize) -> usize {
 
     // Fill the final 4 bits in with the value from the first step
     // e.g. 0b0100_1000_0000 | 0b1011 = 0b0100_1000_1011
-    return value_with_no_final_bits | final_four_bits;
+    value_with_no_final_bits | final_four_bits
 }
 
 fn get_object_type_bits(value: usize) -> usize {
@@ -390,7 +389,7 @@ fn get_object_type_bits(value: usize) -> usize {
     let size_and_object_type = value >> TYPE_BYTE_SIZE_BITS;
 
     // Read the last 3 bits
-    return keep_bits(size_and_object_type, TYPE_BITS);
+    keep_bits(size_and_object_type, TYPE_BITS)
 }
 
 fn keep_bits(value: usize, bits: u8) -> usize {

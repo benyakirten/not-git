@@ -7,9 +7,9 @@ pub struct CatFileConfig {
     pub file_name: String,
 }
 
-impl Into<PathBuf> for CatFileConfig {
-    fn into(self) -> PathBuf {
-        ["not-git", "objects", &self.dir, &self.file_name]
+impl From<CatFileConfig> for PathBuf {
+    fn from(config: CatFileConfig) -> Self {
+        ["not-git", "objects", &config.dir, &config.file_name]
             .iter()
             .collect()
     }
@@ -33,14 +33,14 @@ pub fn decode_file(config: CatFileConfig) -> Result<String, anyhow::Error> {
         return ls_tree::stringify_list_tree(decoded_content, ls_tree::LsTreeFlag::Long);
     }
 
-    match decoded_string.split("\x00").last() {
+    match decoded_string.split('\0').last() {
         Some(content) => Ok(content.to_string()),
         None => Ok(decoded_string.to_string()),
     }
 }
 
 fn parse_cat_file_cmds(args: &[String]) -> Result<CatFileConfig, anyhow::Error> {
-    if args.len() == 0 {
+    if args.is_empty() {
         return Err(anyhow::anyhow!("Usage: cat-file <hash>"));
     }
 

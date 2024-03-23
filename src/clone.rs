@@ -88,7 +88,7 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<ObjectEntry>), anyhow::
     // The whole ref name is ref/heads/{branch_name} - we want the last part
     let head_path = head_ref
         .branch
-        .split("/")
+        .split('/')
         .last()
         .ok_or_else(|| anyhow::anyhow!("Unable to parse head branch name"))?;
 
@@ -114,7 +114,7 @@ pub fn download_commit(
     url: &str,
     hash: &FileHash,
 ) -> Result<Vec<ObjectEntry>, anyhow::Error> {
-    let commit = get_commit(&client, url, hash)?;
+    let commit = get_commit(client, url, hash)?;
     let header = PackFileHeader::from_bytes(commit[..20].to_vec())?;
 
     let mut objects: Vec<ObjectEntry> = vec![];
@@ -297,12 +297,7 @@ fn discover_references(
             if line == "0000" {
                 return None;
             }
-            let parts = line.split_once(" ");
-            if parts.is_none() {
-                return None;
-            }
-
-            let (mode_and_hash, branch) = parts.unwrap();
+            let (mode_and_hash, branch) = line.split_once(' ')?;
 
             let mode = mode_and_hash[0..4].to_string();
             let commit_hash = mode_and_hash[4..].to_string();
@@ -326,7 +321,7 @@ fn discover_references(
 }
 
 fn parse_clone_config(args: &[String]) -> Result<CloneConfig, anyhow::Error> {
-    if args.len() == 0 || args.len() > 2 {
+    if args.is_empty() || args.len() > 2 {
         return Err(anyhow::anyhow!("Usage: clone <url> [<path>]"));
     }
 

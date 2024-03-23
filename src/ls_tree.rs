@@ -1,4 +1,4 @@
-use std::{os::unix::fs::PermissionsExt, path::PathBuf};
+use std::{fmt::Write, os::unix::fs::PermissionsExt, path::PathBuf};
 
 use crate::{file_hash::FileHash, utils};
 
@@ -107,24 +107,24 @@ pub fn stringify_list_tree(
     let tree_files = parse_tree_files(decoded_content)?;
 
     let output_string: String = match flag {
-        LsTreeFlag::NameOnly => tree_files
-            .iter()
-            .map(|tree_file| format!("{}\n", tree_file.file_name))
-            .collect(),
+        LsTreeFlag::NameOnly => tree_files.iter().fold(String::new(), |mut acc, tree_file| {
+            writeln!(acc, "{}", tree_file.file_name).unwrap();
+            acc
+        }),
         LsTreeFlag::Long => {
-            tree_files
-                .iter()
-                .map(|tree_file| {
-                    // To not make this harder on myself, I'm leaving off the file size
-                    format!(
-                        "{} {} {}\t{}\n",
-                        tree_file.file_type.to_number_string(),
-                        tree_file.file_type.to_readable_string(),
-                        tree_file.hash.full_hash(),
-                        tree_file.file_name,
-                    )
-                })
-                .collect()
+            tree_files.iter().fold(String::new(), |mut acc, tree_file| {
+                // To not make this harder on myself, I'm leaving off the file size
+                writeln!(
+                    acc,
+                    "{} {} {}\t{}",
+                    tree_file.file_type.to_number_string(),
+                    tree_file.file_type.to_readable_string(),
+                    tree_file.hash.full_hash(),
+                    tree_file.file_name,
+                )
+                .unwrap();
+                acc
+            })
         }
     };
 
@@ -136,7 +136,7 @@ pub fn parse_tree_files(decoded_content: Vec<u8>) -> Result<Vec<TreeFile>, anyho
 
     let (_, mut body) = split_at_next_empty_byte(decoded_content)?;
 
-    while body.len() > 0 {
+    while !body.is_empty() {
         let (tree_file, rest) = parse_until_next_file(body)?;
         tree_files.push(tree_file);
         body = rest;

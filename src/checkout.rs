@@ -27,8 +27,8 @@ pub fn checkout_branch(config: &CheckoutConfig) -> Result<usize, anyhow::Error> 
     let initial_tree = get_initial_tree(config)?;
 
     // TODO: Add parameter to copy all data to a folder.
-    fs::create_dir("copy_folder")?;
-    create_tree(initial_tree, vec!["copy_folder"])
+    fs::create_dir("clone_folder")?;
+    create_tree(initial_tree, vec!["clone_folder"])
 }
 
 fn create_tree(
@@ -87,7 +87,8 @@ fn get_initial_tree(config: &CheckoutConfig) -> Result<Vec<ls_tree::TreeFile>, a
         ["not-git", "refs", "heads"].iter().collect()
     };
 
-    let commit_sha = read_to_string(path.join(config.branch_name.to_string()))?;
+    let branch_path = path.join(&config.branch_name);
+    let commit_sha = read_to_string(branch_path)?;
     let commit_sha = FileHash::from_sha(commit_sha)?;
 
     let cat_config = CatFileConfig {
@@ -119,7 +120,7 @@ fn get_initial_tree(config: &CheckoutConfig) -> Result<Vec<ls_tree::TreeFile>, a
 }
 
 fn parse_checkout_config(args: &[String]) -> Result<CheckoutConfig, anyhow::Error> {
-    if args.len() < 1 {
+    if args.is_empty() {
         return Err(anyhow::anyhow!("Usage: checkout <branch-name>"));
     }
 

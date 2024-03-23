@@ -34,20 +34,18 @@ fn create_file_contents(config: CommitTreeConfig) -> Result<Vec<u8>, anyhow::Err
 
     writeln!(
         &mut contents,
-        "author {}",
-        "Ben Horowitz >benyakir.horowitz@gmail.com>"
+        "author Ben Horowitz >benyakir.horowitz@gmail.com>",
     )?;
     writeln!(
         &mut contents,
-        "committer {}",
-        "Ben Horowitz <benyakir.horowitz@gmail.com>"
+        "committer Ben Horowitz <benyakir.horowitz@gmail.com>",
     )?;
     writeln!(&mut contents, "{}", config.message)?;
     Ok(contents)
 }
 
 fn parse_commit_tree_config(args: &[String]) -> Result<CommitTreeConfig, anyhow::Error> {
-    if args.len() < 1 {
+    if args.is_empty() {
         return Err(anyhow::anyhow!("Usage: commit-tree <tree-hash>"));
     }
 
@@ -57,14 +55,14 @@ fn parse_commit_tree_config(args: &[String]) -> Result<CommitTreeConfig, anyhow:
 
     Ok(CommitTreeConfig {
         tree_hash,
-        message: message,
+        message,
         parent_hash,
     })
 }
 
 fn get_tree_hash(args: &[String]) -> Result<FileHash, anyhow::Error> {
     // We have already checked that args.len() >= 1
-    let tree_hash = if args[0].starts_with("-") {
+    let tree_hash = if args[0].starts_with('-') {
         args.last().unwrap().to_string()
     } else {
         args[0].to_string()
