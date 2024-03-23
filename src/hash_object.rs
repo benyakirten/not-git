@@ -28,7 +28,7 @@ pub fn hash_and_write_object(
     file_type: &FileType,
     file_contents: &mut Vec<u8>,
 ) -> Result<FileHash, anyhow::Error> {
-    let mut header = create_header(file_type, &file_contents);
+    let mut header = create_header(file_type, file_contents);
 
     header.append(file_contents);
     let hash = hash_file(&header)?;

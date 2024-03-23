@@ -105,11 +105,11 @@ fn print_branches(branches: ListBranchOptions) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-pub fn list_branches(list_all_branches: bool) -> Result<ListBranchOptions, anyhow::Error> {
+pub fn list_branches(_list_all_branches: bool) -> Result<ListBranchOptions, anyhow::Error> {
     // TODO: Handle tags
 
     let head_path: PathBuf = ["not-git", "refs", "heads"].iter().collect();
-    let mut branches = collect_branches(vec![], head_path)?;
+    let branches = collect_branches(vec![], head_path)?;
 
     // TODO: List all branches if -a tag - decode packed-refs
 

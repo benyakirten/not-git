@@ -22,7 +22,7 @@ pub fn commit_command(args: &[String]) -> Result<(), anyhow::Error> {
     // Output might look like:
     // 2 files changed, 9 insertions(+)
     //  create mode 100644 src/commit.rs
-    println!("{}", "Commit successful.");
+    println!("Commit successful.");
 
     Ok(())
 }
@@ -86,7 +86,7 @@ fn get_parent_commit(file_hash: FileHash) -> Result<Option<FileHash>, anyhow::Er
 
     let commit_content = cat_file::decode_file(cat_file_config)?;
 
-    for line in commit_content.split("\n") {
+    for line in commit_content.lines() {
         if let Some(hash_parts) = line.split_once("parent ") {
             let hash = hash_parts.1;
             let hash = FileHash::from_sha(hash.to_string())?;

@@ -26,7 +26,7 @@ pub fn decode_file(path: PathBuf) -> Result<Vec<u8>, anyhow::Error> {
     Ok(decoded_vec)
 }
 
-pub fn create_header(file_type: &FileType, file: &Vec<u8>) -> Vec<u8> {
+pub fn create_header(file_type: &FileType, file: &[u8]) -> Vec<u8> {
     let header = format!("{} {}\0", file_type.to_readable_string(), file.len());
     header.as_bytes().to_vec()
 }
