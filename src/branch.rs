@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::{
-    file_hash::ObjectHash,
+    objects::ObjectHash,
     update_refs::{self, UpdateRefsConfig},
     utils::{get_head_ref, read_from_file},
 };
@@ -84,10 +84,7 @@ fn create_branch(branch_name: String) -> Result<(), anyhow::Error> {
         ObjectHash::from_sha(head_commit)?
     };
 
-    let config = UpdateRefsConfig {
-        commit_hash: head_commit,
-        path: PathBuf::from(branch_name),
-    };
+    let config = UpdateRefsConfig::new(head_commit, PathBuf::from(branch_name));
     update_refs::update_refs(config)?;
 
     Ok(())
