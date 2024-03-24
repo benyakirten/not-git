@@ -10,6 +10,8 @@ pub struct TreeObject {
 }
 
 impl TreeObject {
+    /// Parse a tree object from an object that has already been decoded from zlib.
+    /// It shoudl already have the header removed.
     pub fn from_object(body: [u8]) -> Result<Vec<Self>, anyhow::Error> {
         let mut cursor = Cursor::new(body);
         let mut tree_files = vec![];

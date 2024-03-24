@@ -18,16 +18,16 @@ pub enum ObjectFile {
 /// for verifying object file/size integrity or for general information (such as ls-tree).
 /// TODO: Examples + Links to documentation
 pub struct ObjectContents<T> {
-    object_type: ObjectType,
-    content: Vec<T>,
-    size: usize,
+    pub object_type: ObjectType,
+    pub contents: Vec<T>,
+    pub size: usize,
 }
 
 impl<T> ObjectContents<T> {
-    pub fn new(object_type: ObjectType, content: Vec<T>, size: usize) -> Self {
+    pub fn new(object_type: ObjectType, contents: Vec<T>, size: usize) -> Self {
         Self {
             object_type,
-            content,
+            contents,
             size,
         }
     }
@@ -41,10 +41,10 @@ impl ObjectFile {
     /// TODO: Examples + Links to documentation
     pub fn new(hash: &ObjectHash) -> Result<Self, anyhow::Error> {
         let path: PathBuf = hash.into();
-        let content = decode_file(path).context("Decoding file from hash")?;
+        let contents = decode_file(path).context("Decoding file from hash")?;
 
         let (header, body) =
-            split_header_from_contents(&content).context("Splitting header and body")?;
+            split_header_from_contents(&contents).context("Splitting header and body")?;
         let header = String::from_utf8(header.to_vec()).context("Parsing header")?;
         let (object_type, size) = header
             .split_once(' ')
