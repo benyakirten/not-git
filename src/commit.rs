@@ -89,7 +89,7 @@ fn get_parent_commit(file_hash: FileHash) -> Result<Option<FileHash>, anyhow::Er
     for line in commit_content.lines() {
         if let Some(hash_parts) = line.split_once("parent ") {
             let hash = hash_parts.1;
-            let hash = hash.
+            let hash = hash.parse();
             return Ok(Some(hash));
         }
     }

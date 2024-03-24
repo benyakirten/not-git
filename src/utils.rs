@@ -4,6 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use anyhow::Context;
 use flate2::read::ZlibDecoder;
 
 use crate::ls_tree::FileType;
@@ -47,4 +48,12 @@ pub fn get_head_ref() -> Result<String, anyhow::Error> {
         .trim();
 
     Ok(head_ref.to_string())
+}
+
+pub fn split_at_empty_byte(content: &[u8]) -> Result<(&[u8], &[u8]), anyhow::Error> {
+    let mut split_content = content.splitn(2, |&x| x == 0);
+
+    let header = split_content.next().context("Getting header")?;
+    let body = split_content.next().context("Getting body")?;
+    Ok((header, body))
 }

@@ -131,7 +131,7 @@ pub fn stringify_list_tree(
     Ok(output_string)
 }
 
-pub fn parse_tree_files(decoded_content: Vec<u8>) -> Result<Vec<TreeFile>, anyhow::Error> {
+pub fn parse_tree_files(decoded_content: &[u8]) -> Result<Vec<TreeFile>, anyhow::Error> {
     let mut tree_files = vec![];
 
     let (_, mut body) = split_at_next_empty_byte(decoded_content)?;

@@ -1,4 +1,12 @@
-use std::{os::unix::fs::PermissionsExt, str::FromStr};
+use std::{os::unix::fs::PermissionsExt, path::PathBuf, str::FromStr};
+
+use anyhow::Context;
+
+use crate::{
+    file_hash::FileHash,
+    ls_tree::{self, TreeFile},
+    utils::{decode_file, split_at_empty_byte},
+};
 
 #[derive(Debug, Clone)]
 pub enum ObjectType {
@@ -77,5 +85,60 @@ impl FromStr for ObjectType {
             "tag" => Ok(ObjectType::Tag),
             _ => Err(anyhow::anyhow!("Invalid file type")),
         }
+    }
+}
+
+pub enum ObjectFile {
+    Tree(ObjectContents<TreeFile>),
+    Other(ObjectContents<u8>),
+}
+
+pub struct ObjectContents<T> {
+    pub file_type: ObjectType,
+    pub content: Vec<T>,
+    pub size: usize,
+}
+
+impl ObjectFile {
+    pub fn new(hash: &FileHash) -> Result<Self, anyhow::Error> {
+        let path: PathBuf = hash.into();
+        let content = decode_file(path).context("Decoding file from hash")?;
+
+        let (header, body) = split_at_empty_byte(&content).context("Splitting header and body")?;
+        let header = String::from_utf8(header.to_vec()).context("Parsing header")?;
+        let (file_type, size) = header
+            .split_once(' ')
+            .context("Splitting file type and size")?;
+
+        let file_type = ObjectType::from_str(file_type).context("Parsing file type")?;
+        let size: usize = size.parse().context("Parsing size")?;
+
+        match file_type {
+            ObjectType::Tree => {
+                let tree_content = ls_tree::parse_tree_files(body).context("Parsing tree files")?;
+                let tree = ObjectContents {
+                    file_type,
+                    content: tree_content,
+                    size,
+                };
+                Ok(ObjectFile::Tree(tree))
+            }
+            _ => {
+                let other = ObjectContents {
+                    file_type,
+                    content: body.to_vec(),
+                    size,
+                };
+                Ok(ObjectFile::Other(other))
+            }
+        }
+    }
+}
+
+impl TryFrom<&FileHash> for ObjectFile {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &FileHash) -> Result<Self, Self::Error> {
+        ObjectFile::new(value)
     }
 }

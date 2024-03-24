@@ -1,6 +1,6 @@
-use std::{io::BufRead, path::PathBuf, str::FromStr};
+use std::path::PathBuf;
 
-use crate::object_type::ObjectType;
+use hex::ToHex;
 
 #[derive(Debug)]
 pub struct FileHash {
@@ -9,30 +9,34 @@ pub struct FileHash {
 }
 
 impl FileHash {
-    pub fn new(prefix: String, hash: String) -> Self {
-        FileHash { prefix, hash }
+    pub fn new(hash: &str) -> Result<Self, anyhow::Error> {
+        if hash.len() != 40 {
+            return Err(anyhow::anyhow!(
+                "Expected sha1 hash to be 40 characters long"
+            ));
+        }
+
+        let prefix = hash[..2].to_string();
+        let hash = hash[2..].to_string();
+
+        Ok(FileHash { prefix, hash })
+    }
+
+    pub fn from_bytes(nums: &[u8]) -> Result<Self, anyhow::Error> {
+        if nums.len() != 20 {
+            return Err(anyhow::anyhow!("Expected sha1 hash to be 20 bytes long"));
+        }
+        let hex: String = nums.encode_hex();
+
+        FileHash::new(&hex)
     }
 
     pub fn full_hash(&self) -> String {
         self.prefix.to_string() + &self.hash.to_string()
     }
 
-    pub fn get_header(&self) -> Result<(ObjectType, usize), anyhow::Error> {
-        let path: PathBuf = self.into();
-        let f = std::fs::File::open(path)?;
-        let mut reader = std::io::BufReader::new(f);
-
-        let mut header = vec![];
-        reader.read_until('\0' as u8, &mut header)?;
-
-        let header = String::from_utf8(header)?;
-        let (file_type, size) = header
-            .split_once(' ')
-            .ok_or_else(|| anyhow::anyhow!("Invalid header"))?;
-
-        let file_type: ObjectType = file_type.parse()?;
-        let size: usize = size.parse()?;
-        Ok((file_type, size))
+    pub fn path(&self) -> PathBuf {
+        self.into()
     }
 }
 
@@ -41,22 +45,5 @@ impl From<&FileHash> for PathBuf {
         ["not-git", "objects", &value.prefix, &value.hash]
             .iter()
             .collect()
-    }
-}
-
-impl FromStr for FileHash {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.len() != 40 {
-            return Err(anyhow::anyhow!(
-                "Expected sha1 hash to be 40 characters long"
-            ));
-        }
-
-        let prefix = s[..2].to_string();
-        let hash = s[2..].to_string();
-
-        Ok(FileHash::new(prefix, hash))
     }
 }

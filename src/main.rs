@@ -1,8 +1,9 @@
 use std::env;
 
 use not_git::{
-    branch, cat_file, checkout, clone, commit, commit_tree, hash_object, init, ls_tree,
-    update_refs, write_tree,
+    branch, checkout, clone, commit, commit_tree,
+    file_hash::{self, FileHash, ObjectFile},
+    hash_object, init, ls_tree, update_refs, write_tree,
 };
 
 fn main() {
@@ -16,7 +17,6 @@ fn main() {
     let command = args[1].to_string();
     let result = match command.as_str() {
         "init" => init::init_command(&args[2..]),
-        "cat-file" => cat_file::cat(&args[2..]),
         "hash-object" => hash_object::hash_object_command(&args[2..]),
         "ls-tree" => ls_tree::list_tree_command(&args[2..]),
         "write-tree" => write_tree::write_tree_command(&args[2..]),

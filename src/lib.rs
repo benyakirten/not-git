@@ -1,5 +1,4 @@
 pub mod branch;
-pub mod cat_file;
 pub mod checkout;
 pub mod clone;
 pub mod commit;
@@ -8,7 +7,7 @@ pub mod file_hash;
 pub mod hash_object;
 pub mod init;
 pub mod ls_tree;
-pub mod object_type;
+pub mod objects;
 pub mod packfile;
 pub mod update_refs;
 pub mod utils;
