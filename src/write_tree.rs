@@ -1,4 +1,3 @@
-use std::fmt::Debug;
 use std::{env, path::PathBuf};
 
 use crate::file_hash::FileHash;
@@ -9,16 +8,6 @@ enum TreeFileType {
     Tree(Vec<TreeFile>),
     Other(FileType, PathBuf),
     Error(anyhow::Error),
-}
-
-impl Debug for TreeFileType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TreeFileType::Tree(_) => write!(f, "TreeFileType::Tree"),
-            TreeFileType::Other(_, _) => write!(f, "TreeFileType::Other"),
-            TreeFileType::Error(_) => write!(f, "TreeFileType::Error"),
-        }
-    }
 }
 
 struct TreeFile {
