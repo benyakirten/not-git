@@ -4,8 +4,25 @@ use std::path::PathBuf;
 use crate::file_hash::FileHash;
 
 pub struct UpdateRefsConfig {
-    pub commit_hash: FileHash,
-    pub path: PathBuf,
+    commit_hash: FileHash,
+    path: PathBuf,
+}
+
+impl UpdateRefsConfig {
+    pub fn new(commit_hash: FileHash, path: PathBuf) -> Self {
+        Self { commit_hash, path }
+    }
+
+    pub fn hash(&self) -> &FileHash {
+        &self.commit_hash
+    }
+
+    pub fn path(&self) -> PathBuf {
+        ["not-git", "refs", "heads"]
+            .iter()
+            .collect::<PathBuf>()
+            .join(self.path)
+    }
 }
 
 pub fn update_refs_command(args: &[String]) -> Result<(), anyhow::Error> {
@@ -14,10 +31,7 @@ pub fn update_refs_command(args: &[String]) -> Result<(), anyhow::Error> {
 }
 
 pub fn update_refs(config: UpdateRefsConfig) -> Result<(), anyhow::Error> {
-    let path = ["not-git", "refs", "heads"]
-        .iter()
-        .collect::<PathBuf>()
-        .join(config.path);
+    let path = config.path();
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -34,7 +48,8 @@ pub fn parse_update_refs_config(args: &[String]) -> Result<UpdateRefsConfig, any
     }
 
     let path = PathBuf::from(&args[0]);
-    let commit_hash = FileHash::from_sha(args[1].to_string())?;
+    let commit_hash = FileHash::new(&args[1])?;
 
-    Ok(UpdateRefsConfig { commit_hash, path })
+    let config = UpdateRefsConfig::new(commit_hash, path);
+    Ok(config)
 }
