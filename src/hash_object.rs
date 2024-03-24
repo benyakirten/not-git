@@ -5,7 +5,7 @@ use hex::ToHex;
 use sha1::{Digest, Sha1};
 
 use crate::{
-    file_hash::FileHash,
+    file_hash::ObjectHash,
     ls_tree::FileType,
     utils::{create_header, read_from_file},
 };
@@ -27,7 +27,7 @@ pub fn hash_object_command(args: &[String]) -> Result<(), anyhow::Error> {
 pub fn hash_and_write_object(
     file_type: &FileType,
     file_contents: &mut Vec<u8>,
-) -> Result<FileHash, anyhow::Error> {
+) -> Result<ObjectHash, anyhow::Error> {
     let mut header = create_header(file_type, file_contents);
 
     header.append(file_contents);
@@ -39,7 +39,7 @@ pub fn hash_and_write_object(
     Ok(hash)
 }
 
-fn write_encoded_object(hash: &FileHash, encoded_contents: Vec<u8>) -> Result<(), anyhow::Error> {
+fn write_encoded_object(hash: &ObjectHash, encoded_contents: Vec<u8>) -> Result<(), anyhow::Error> {
     let path: PathBuf = ["not-git", "objects", &hash.prefix].iter().collect();
     if !path.exists() {
         fs::create_dir(&path)?;
@@ -49,7 +49,7 @@ fn write_encoded_object(hash: &FileHash, encoded_contents: Vec<u8>) -> Result<()
     Ok(())
 }
 
-fn hash_file(file: &Vec<u8>) -> Result<FileHash, anyhow::Error> {
+fn hash_file(file: &Vec<u8>) -> Result<ObjectHash, anyhow::Error> {
     let mut hasher = Sha1::new();
     hasher.update(file);
     let result: String = hasher.finalize().encode_hex();
@@ -60,7 +60,7 @@ fn hash_file(file: &Vec<u8>) -> Result<FileHash, anyhow::Error> {
         ));
     }
 
-    Ok(FileHash::new(
+    Ok(ObjectHash::new(
         result[..2].to_string(),
         result[2..].to_string(),
     ))

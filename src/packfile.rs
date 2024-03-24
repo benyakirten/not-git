@@ -3,7 +3,7 @@ use std::io::{Cursor, ErrorKind, Read};
 use anyhow::Context;
 use flate2::bufread::ZlibDecoder;
 
-use crate::{file_hash::FileHash, hash_object, ls_tree::FileType};
+use crate::{file_hash::ObjectHash, hash_object, objects::ObjectType};
 
 const VARINT_ENCODING_BITS: u8 = 7;
 
@@ -28,13 +28,13 @@ pub struct PackFileHeader {
 }
 
 #[derive(Debug)]
-pub struct ObjectEntry {
-    pub object_type: ObjectType,
+pub struct PackfileObject {
+    pub object_type: PackfileObjectType,
     pub size: usize,
     pub data: Vec<u8>,
     pub position: usize,
-    pub file_hash: FileHash,
-    pub file_type: FileType,
+    pub file_hash: ObjectHash,
+    pub file_type: ObjectType,
 }
 
 pub enum DeltaInstruction {
@@ -84,7 +84,7 @@ impl PackFileHeader {
 }
 
 #[derive(Debug)]
-pub enum ObjectType {
+pub enum PackfileObjectType {
     Commit(usize),
     Tree(usize),
     Blob(usize),
@@ -93,55 +93,55 @@ pub enum ObjectType {
     RefDelta(usize),
 }
 
-impl ObjectType {
+impl PackfileObjectType {
     pub fn new(object_type: u8, size: usize) -> Result<Self, anyhow::Error> {
         match object_type {
-            1 => Ok(ObjectType::Commit(size)),
-            2 => Ok(ObjectType::Tree(size)),
-            3 => Ok(ObjectType::Blob(size)),
-            4 => Ok(ObjectType::Tag(size)),
-            6 => Ok(ObjectType::OfsDelta(size)),
-            7 => Ok(ObjectType::RefDelta(size)),
+            1 => Ok(PackfileObjectType::Commit(size)),
+            2 => Ok(PackfileObjectType::Tree(size)),
+            3 => Ok(PackfileObjectType::Blob(size)),
+            4 => Ok(PackfileObjectType::Tag(size)),
+            6 => Ok(PackfileObjectType::OfsDelta(size)),
+            7 => Ok(PackfileObjectType::RefDelta(size)),
             _ => Err(anyhow::anyhow!("Invalid object type")),
         }
     }
 
     pub fn name(&self) -> String {
         match self {
-            ObjectType::Commit(_) => "commit".to_string(),
-            ObjectType::Tree(_) => "tree".to_string(),
-            ObjectType::Blob(_) => "blob".to_string(),
-            ObjectType::Tag(_) => "tag".to_string(),
-            ObjectType::OfsDelta(_) => "ofs-delta".to_string(),
-            ObjectType::RefDelta(_) => "ref-delta".to_string(),
+            PackfileObjectType::Commit(_) => "commit".to_string(),
+            PackfileObjectType::Tree(_) => "tree".to_string(),
+            PackfileObjectType::Blob(_) => "blob".to_string(),
+            PackfileObjectType::Tag(_) => "tag".to_string(),
+            PackfileObjectType::OfsDelta(_) => "ofs-delta".to_string(),
+            PackfileObjectType::RefDelta(_) => "ref-delta".to_string(),
         }
     }
 
     pub fn length(&self) -> usize {
         match self {
-            ObjectType::Commit(length) => *length,
-            ObjectType::Tree(length) => *length,
-            ObjectType::Blob(length) => *length,
-            ObjectType::Tag(length) => *length,
-            ObjectType::OfsDelta(length) => *length,
-            ObjectType::RefDelta(length) => *length,
+            PackfileObjectType::Commit(length) => *length,
+            PackfileObjectType::Tree(length) => *length,
+            PackfileObjectType::Blob(length) => *length,
+            PackfileObjectType::Tag(length) => *length,
+            PackfileObjectType::OfsDelta(length) => *length,
+            PackfileObjectType::RefDelta(length) => *length,
         }
     }
 }
 
 pub fn decode_undeltified_data(
-    file_type: FileType,
+    file_type: ObjectType,
     cursor: &mut Cursor<&[u8]>,
-) -> Result<(Vec<u8>, FileHash, FileType), anyhow::Error> {
+) -> Result<(Vec<u8>, ObjectHash, ObjectType), anyhow::Error> {
     let data = read_next_zlib_data(cursor)?;
     let hash = hash_object::hash_and_write_object(&file_type, &mut data.clone())?;
     Ok((data, hash, file_type))
 }
 
 pub fn read_obj_offset_data(
-    objects: &[ObjectEntry],
+    objects: &[PackfileObject],
     cursor: &mut Cursor<&[u8]>,
-) -> Result<(Vec<u8>, FileHash, FileType), anyhow::Error> {
+) -> Result<(Vec<u8>, ObjectHash, ObjectType), anyhow::Error> {
     // We need to read the offset from the packfile. The offset is variable-sized
     // but negative so we are guaranteed to have seen it before now.
     // Then we need to find the object that starts at that position.
@@ -166,14 +166,14 @@ pub fn read_obj_offset_data(
 }
 
 pub fn read_obj_ref_data(
-    objects: &[ObjectEntry],
+    objects: &[PackfileObject],
     cursor: &mut Cursor<&[u8]>,
-) -> Result<(Vec<u8>, FileHash, FileType), anyhow::Error> {
+) -> Result<(Vec<u8>, ObjectHash, ObjectType), anyhow::Error> {
     let mut ref_sha: [u8; 20] = [0; 20];
     cursor.read_exact(&mut ref_sha)?;
 
     let hash = hex::encode(ref_sha);
-    let hash = FileHash::from_sha(hash)?;
+    let hash = ObjectHash::new(&hash)?;
 
     let object = objects
         .iter()
@@ -191,8 +191,8 @@ pub fn read_obj_ref_data(
 
 fn compile_file_from_deltas(
     cursor: &mut Cursor<&[u8]>,
-    object: &ObjectEntry,
-) -> Result<(Vec<u8>, FileHash, FileType), anyhow::Error> {
+    object: &PackfileObject,
+) -> Result<(Vec<u8>, ObjectHash, ObjectType), anyhow::Error> {
     let delta_data = read_next_zlib_data(cursor)?;
     let file_contents = apply_deltas(object, delta_data)?;
 
@@ -201,7 +201,7 @@ fn compile_file_from_deltas(
     Ok((file_contents, hash, object.file_type.clone()))
 }
 
-fn apply_deltas(target: &ObjectEntry, delta_data: Vec<u8>) -> Result<Vec<u8>, anyhow::Error> {
+fn apply_deltas(target: &PackfileObject, delta_data: Vec<u8>) -> Result<Vec<u8>, anyhow::Error> {
     let mut cursor = Cursor::new(delta_data.as_slice());
 
     let source_length = read_varint_bytes(&mut cursor)?;
@@ -302,7 +302,7 @@ fn get_copy_instruction_data(
 }
 
 fn apply_copy_instruction(
-    target: &ObjectEntry,
+    target: &PackfileObject,
     offset: usize,
     size: usize,
 ) -> Result<Vec<u8>, anyhow::Error> {
@@ -344,7 +344,9 @@ fn read_next_zlib_data(mut cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, anyhow
 }
 
 /// We need to read the packfile in little-endian order. The first three bits are the object type.
-pub fn read_type_and_length(cursor: &mut Cursor<&[u8]>) -> Result<ObjectType, anyhow::Error> {
+pub fn read_type_and_length(
+    cursor: &mut Cursor<&[u8]>,
+) -> Result<PackfileObjectType, anyhow::Error> {
     // Using a `usize` type limits us to files that are 2^61 bytes in size.
     // I hope whatever future person is passing around files that are 2 exabytes
     // in their git repo doesn't use this code.
@@ -353,7 +355,7 @@ pub fn read_type_and_length(cursor: &mut Cursor<&[u8]>) -> Result<ObjectType, an
     let object_type = get_object_type_bits(value) as u8;
     let size = get_object_size(value);
 
-    let object_type = ObjectType::new(object_type, size)?;
+    let object_type = PackfileObjectType::new(object_type, size)?;
     Ok(object_type)
 }
 

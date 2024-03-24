@@ -1,11 +1,11 @@
 use std::io::Write;
 
-use crate::{file_hash::FileHash, hash_object, ls_tree::FileType};
+use crate::{file_hash::ObjectHash, hash_object, ls_tree::FileType};
 
 pub struct CommitTreeConfig {
-    pub tree_hash: FileHash,
+    pub tree_hash: ObjectHash,
     pub message: String,
-    pub parent_hash: Option<FileHash>,
+    pub parent_hash: Option<ObjectHash>,
     // TODO: Add author and committer - figure out how git gets the values.
 }
 
@@ -17,7 +17,7 @@ pub fn commit_tree_command(args: &[String]) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-pub fn commit_tree(config: CommitTreeConfig) -> Result<FileHash, anyhow::Error> {
+pub fn commit_tree(config: CommitTreeConfig) -> Result<ObjectHash, anyhow::Error> {
     let mut contents = create_file_contents(config)?;
     let hash = hash_object::hash_and_write_object(&FileType::Commit, &mut contents)?;
 
@@ -60,7 +60,7 @@ fn parse_commit_tree_config(args: &[String]) -> Result<CommitTreeConfig, anyhow:
     })
 }
 
-fn get_tree_hash(args: &[String]) -> Result<FileHash, anyhow::Error> {
+fn get_tree_hash(args: &[String]) -> Result<ObjectHash, anyhow::Error> {
     // We have already checked that args.len() >= 1
     let tree_hash = if args[0].starts_with('-') {
         args.last().unwrap().to_string()
@@ -68,15 +68,15 @@ fn get_tree_hash(args: &[String]) -> Result<FileHash, anyhow::Error> {
         args[0].to_string()
     };
 
-    let tree_hash = FileHash::from_sha(tree_hash)?;
+    let tree_hash = ObjectHash::from_sha(tree_hash)?;
     Ok(tree_hash)
 }
 
-fn get_parent_hash(args: &[String]) -> Result<Option<FileHash>, anyhow::Error> {
+fn get_parent_hash(args: &[String]) -> Result<Option<ObjectHash>, anyhow::Error> {
     let parent_hash = get_flag_arg_optional("-p", args)?;
     match parent_hash {
         Some(hash) => {
-            let hash = FileHash::from_sha(hash)?;
+            let hash = ObjectHash::from_sha(hash)?;
             Ok(Some(hash))
         }
         None => Ok(None),

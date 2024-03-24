@@ -1,19 +1,19 @@
 use std::fs;
 use std::path::PathBuf;
 
-use crate::file_hash::FileHash;
+use crate::objects::ObjectHash;
 
 pub struct UpdateRefsConfig {
-    commit_hash: FileHash,
+    commit_hash: ObjectHash,
     path: PathBuf,
 }
 
 impl UpdateRefsConfig {
-    pub fn new(commit_hash: FileHash, path: PathBuf) -> Self {
+    pub fn new(commit_hash: ObjectHash, path: PathBuf) -> Self {
         Self { commit_hash, path }
     }
 
-    pub fn hash(&self) -> &FileHash {
+    pub fn hash(&self) -> &ObjectHash {
         &self.commit_hash
     }
 
@@ -23,11 +23,6 @@ impl UpdateRefsConfig {
             .collect::<PathBuf>()
             .join(self.path)
     }
-}
-
-pub fn update_refs_command(args: &[String]) -> Result<(), anyhow::Error> {
-    let config = parse_update_refs_config(args)?;
-    update_refs(config)
 }
 
 pub fn update_refs(config: UpdateRefsConfig) -> Result<(), anyhow::Error> {
@@ -42,14 +37,6 @@ pub fn update_refs(config: UpdateRefsConfig) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-pub fn parse_update_refs_config(args: &[String]) -> Result<UpdateRefsConfig, anyhow::Error> {
-    if args.len() < 2 {
-        return Err(anyhow::anyhow!("Usage: update-refs <ref> <hash>"));
-    }
-
-    let path = PathBuf::from(&args[0]);
-    let commit_hash = FileHash::new(&args[1])?;
-
-    let config = UpdateRefsConfig::new(commit_hash, path);
-    Ok(config)
+fn validate_hash_as_commit(hash: &ObjectHash) -> Result<(), anyhow::Error> {
+    todo!()
 }

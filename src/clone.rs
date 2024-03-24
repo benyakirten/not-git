@@ -7,7 +7,7 @@ use reqwest::header::CONTENT_TYPE;
 
 use crate::{
     checkout::{self, CheckoutConfig},
-    file_hash::FileHash,
+    file_hash::ObjectHash,
     init,
     ls_tree::FileType,
     packfile::{self, ObjectEntry, PackFileHeader},
@@ -23,7 +23,7 @@ pub struct CloneConfig {
 pub struct GitRef {
     #[allow(dead_code)]
     pub mode: String,
-    pub commit_hash: FileHash,
+    pub commit_hash: ObjectHash,
     #[allow(dead_code)]
     pub branch: String,
     pub is_head: bool,
@@ -93,7 +93,7 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<ObjectEntry>), anyhow::
         .ok_or_else(|| anyhow::anyhow!("Unable to parse head branch name"))?;
 
     let update_ref_config = update_refs::UpdateRefsConfig {
-        commit_hash: FileHash::from_sha(head_ref.commit_hash.full_hash())?,
+        commit_hash: ObjectHash::from_sha(head_ref.commit_hash.full_hash())?,
         path: PathBuf::from(head_path),
     };
 
@@ -112,7 +112,7 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<ObjectEntry>), anyhow::
 pub fn download_commit(
     client: &Client,
     url: &str,
-    hash: &FileHash,
+    hash: &ObjectHash,
 ) -> Result<Vec<ObjectEntry>, anyhow::Error> {
     let commit = get_commit(client, url, hash)?;
     let header = PackFileHeader::from_bytes(commit[..20].to_vec())?;
@@ -169,7 +169,11 @@ pub fn download_commit(
     Ok(objects)
 }
 
-fn get_commit(client: &Client, url: &str, commit_hash: &FileHash) -> Result<Bytes, anyhow::Error> {
+fn get_commit(
+    client: &Client,
+    url: &str,
+    commit_hash: &ObjectHash,
+) -> Result<Bytes, anyhow::Error> {
     let request_url = format!("{}/git-upload-pack", url);
     // 0000 is the termination code
     // 0009done is added to indicate that this is the final request in negotiation
@@ -290,7 +294,7 @@ fn discover_references(
         .next()
         .ok_or_else(|| anyhow::anyhow!("No HEAD line in packet"))?;
 
-    let head_ref = FileHash::from_sha(head_line[8..48].to_string())?;
+    let head_ref = ObjectHash::from_sha(head_line[8..48].to_string())?;
 
     let refs: Vec<GitRef> = lines
         .filter_map(|line| {
@@ -301,7 +305,7 @@ fn discover_references(
 
             let mode = mode_and_hash[0..4].to_string();
             let commit_hash = mode_and_hash[4..].to_string();
-            let commit_hash = match FileHash::from_sha(commit_hash) {
+            let commit_hash = match ObjectHash::from_sha(commit_hash) {
                 Ok(hash) => hash,
                 Err(_) => return None,
             };

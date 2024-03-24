@@ -3,7 +3,7 @@ use std::{fs, path::PathBuf};
 use crate::{
     cat_file::{self, CatFileConfig},
     commit_tree::{self, CommitTreeConfig},
-    file_hash::FileHash,
+    file_hash::ObjectHash,
     update_refs::{self, UpdateRefsConfig},
     utils::get_head_ref,
     write_tree,
@@ -62,7 +62,7 @@ fn parse_commit_config(args: &[String]) -> Result<CommitConfig, anyhow::Error> {
     Ok(CommitConfig { message })
 }
 
-fn get_parent_hash(head_ref: &str) -> Result<Option<FileHash>, anyhow::Error> {
+fn get_parent_hash(head_ref: &str) -> Result<Option<ObjectHash>, anyhow::Error> {
     let head_file_path = PathBuf::from(head_ref);
     let head_file_path = ["not-git", "refs", "heads"]
         .iter()
@@ -78,7 +78,7 @@ fn get_parent_hash(head_ref: &str) -> Result<Option<FileHash>, anyhow::Error> {
     Ok(Some(hash))
 }
 
-fn get_parent_commit(file_hash: FileHash) -> Result<Option<FileHash>, anyhow::Error> {
+fn get_parent_commit(file_hash: ObjectHash) -> Result<Option<ObjectHash>, anyhow::Error> {
     let cat_file_config = CatFileConfig {
         dir: file_hash.prefix,
         file_name: file_hash.hash,

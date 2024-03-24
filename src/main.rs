@@ -2,7 +2,7 @@ use std::env;
 
 use not_git::{
     branch, checkout, clone, commit, commit_tree,
-    file_hash::{self, FileHash, ObjectFile},
+    file_hash::{self, ObjectFile, ObjectHash},
     hash_object, init, ls_tree, update_refs, write_tree,
 };
 

@@ -7,9 +7,10 @@ use std::{
 use anyhow::Context;
 use flate2::read::ZlibDecoder;
 
-use crate::ls_tree::FileType;
+use crate::objects::ObjectType;
 
-pub fn read_from_file<P: AsRef<Path>>(path: P) -> Result<Vec<u8>, std::io::Error> {
+/// Utiltiy function for reading the contents of a file.
+pub fn read_from_file<P: AsRef<Path>>(path: P) -> Result<Vec<u8>, anyhow::Error> {
     let mut file = fs::File::open(path)?;
     let mut content = vec![];
     file.read_to_end(&mut content)?;
@@ -17,6 +18,7 @@ pub fn read_from_file<P: AsRef<Path>>(path: P) -> Result<Vec<u8>, std::io::Error
     Ok(content)
 }
 
+/// Utility function for decoding a file that has been encoded with zlib.
 pub fn decode_file(path: PathBuf) -> Result<Vec<u8>, anyhow::Error> {
     let encoded_content = read_from_file(path)?;
 
@@ -27,8 +29,9 @@ pub fn decode_file(path: PathBuf) -> Result<Vec<u8>, anyhow::Error> {
     Ok(decoded_vec)
 }
 
-pub fn create_header(file_type: &FileType, file: &[u8]) -> Vec<u8> {
-    let header = format!("{} {}\0", file_type.to_readable_string(), file.len());
+/// Given a file type and the
+pub fn create_header(object_type: &ObjectType, file: &[u8]) -> Vec<u8> {
+    let header = format!("{} {}\0", object_type.as_str(), file.len());
     header.as_bytes().to_vec()
 }
 
@@ -50,7 +53,7 @@ pub fn get_head_ref() -> Result<String, anyhow::Error> {
     Ok(head_ref.to_string())
 }
 
-pub fn split_at_empty_byte(content: &[u8]) -> Result<(&[u8], &[u8]), anyhow::Error> {
+pub fn split_header_from_contents(content: &[u8]) -> Result<(&[u8], &[u8]), anyhow::Error> {
     let mut split_content = content.splitn(2, |&x| x == 0);
 
     let header = split_content.next().context("Getting header")?;

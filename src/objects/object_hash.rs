@@ -1,14 +1,12 @@
 use std::path::PathBuf;
 
-use hex::ToHex;
-
 #[derive(Debug)]
-pub struct FileHash {
+pub struct ObjectHash {
     prefix: String,
     hash: String,
 }
 
-impl FileHash {
+impl ObjectHash {
     pub fn new(hash: &str) -> Result<Self, anyhow::Error> {
         if hash.len() != 40 {
             return Err(anyhow::anyhow!(
@@ -19,7 +17,7 @@ impl FileHash {
         let prefix = hash[..2].to_string();
         let hash = hash[2..].to_string();
 
-        Ok(FileHash { prefix, hash })
+        Ok(ObjectHash { prefix, hash })
     }
 
     pub fn from_bytes(nums: &[u8]) -> Result<Self, anyhow::Error> {
@@ -28,7 +26,7 @@ impl FileHash {
         }
         let hex: String = nums.encode_hex();
 
-        FileHash::new(&hex)
+        ObjectHash::new(&hex)
     }
 
     pub fn full_hash(&self) -> String {
@@ -40,8 +38,8 @@ impl FileHash {
     }
 }
 
-impl From<&FileHash> for PathBuf {
-    fn from(value: &FileHash) -> Self {
+impl From<&ObjectHash> for PathBuf {
+    fn from(value: &ObjectHash) -> Self {
         ["not-git", "objects", &value.prefix, &value.hash]
             .iter()
             .collect()

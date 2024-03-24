@@ -7,7 +7,7 @@ use anyhow::Context;
 
 use crate::{
     cat_file::{self, CatFileConfig},
-    file_hash::FileHash,
+    file_hash::ObjectHash,
     ls_tree, utils,
 };
 
@@ -89,7 +89,7 @@ fn get_initial_tree(config: &CheckoutConfig) -> Result<Vec<ls_tree::TreeFile>, a
 
     let branch_path = path.join(&config.branch_name);
     let commit_sha = read_to_string(branch_path)?;
-    let commit_sha = FileHash::from_sha(commit_sha)?;
+    let commit_sha = ObjectHash::from_sha(commit_sha)?;
 
     let cat_config = CatFileConfig {
         dir: commit_sha.prefix,
@@ -109,7 +109,7 @@ fn get_initial_tree(config: &CheckoutConfig) -> Result<Vec<ls_tree::TreeFile>, a
         .split_ascii_whitespace()
         .last()
         .ok_or_else(|| anyhow::anyhow!("No tree hash found in commit"))?;
-    let tree_hash = FileHash::from_sha(tree_hash.to_string())?;
+    let tree_hash = ObjectHash::from_sha(tree_hash.to_string())?;
 
     let tree_path = ["not-git", "objects", &tree_hash.prefix, &tree_hash.hash]
         .iter()
