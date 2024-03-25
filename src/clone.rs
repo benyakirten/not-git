@@ -68,6 +68,9 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<PackfileObject>), anyho
     // We could use async functions or we could run this as single-threaded with blocking calls
     // We will use blocking calls for simplicity/ease of use. I don't think there's a part that
     // would benefit from async calls yet.
+    let tmp = PathBuf::from(".tmp");
+    std::fs::create_dir(&tmp)?;
+    std::env::set_current_dir(&tmp)?;
 
     let client = Client::new();
     let mut refs = discover_references(

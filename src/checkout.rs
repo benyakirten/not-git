@@ -20,8 +20,7 @@ impl CheckoutConfig {
 pub fn checkout_branch(config: &CheckoutConfig) -> Result<usize, anyhow::Error> {
     let initial_tree = get_initial_tree(config)?;
 
-    fs::create_dir("clone_folder")?;
-    create_tree(initial_tree, vec!["clone_folder"])
+    create_tree(initial_tree, vec![])
 }
 
 fn create_tree(
