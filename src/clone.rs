@@ -101,7 +101,7 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<PackfileObject>), anyho
         None => head_ref.branch.as_str(),
     };
 
-    let init_config = init::InitConfig::new(head_path, Some(TEMP_DIR));
+    let init_config = init::InitConfig::new(head_path, None);
     init::create_directories(init_config)?;
 
     let objects = download_commit(&client, &config.url, &head_ref.commit_hash)?;
