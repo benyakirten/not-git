@@ -9,6 +9,8 @@ use crate::objects::{ObjectHash, ObjectType};
 use crate::packfile::{self, PackfileHeader, PackfileObject};
 use crate::{checkout, init, update_refs};
 
+const TEMP_DIR: &str = ".tmp";
+
 pub struct CloneConfig<'a> {
     pub url: String,
     pub path: Option<&'a str>,
@@ -68,9 +70,8 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<PackfileObject>), anyho
     // We could use async functions or we could run this as single-threaded with blocking calls
     // We will use blocking calls for simplicity/ease of use. I don't think there's a part that
     // would benefit from async calls yet.
-    let tmp = PathBuf::from(".tmp");
-    std::fs::create_dir(&tmp)?;
-    std::env::set_current_dir(&tmp)?;
+    std::fs::create_dir(TEMP_DIR)?;
+    std::env::set_current_dir(TEMP_DIR)?;
 
     let client = Client::new();
     let mut refs = discover_references(
@@ -100,7 +101,7 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<PackfileObject>), anyho
         None => head_ref.branch.as_str(),
     };
 
-    let init_config = init::InitConfig::new(head_path, None);
+    let init_config = init::InitConfig::new(head_path, Some(TEMP_DIR));
     init::create_directories(init_config)?;
 
     let objects = download_commit(&client, &config.url, &head_ref.commit_hash)?;
