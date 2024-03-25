@@ -19,7 +19,9 @@ impl CheckoutConfig {
 
 pub fn checkout_branch(config: &CheckoutConfig) -> Result<usize, anyhow::Error> {
     let initial_tree = get_initial_tree(config)?;
-    create_tree(initial_tree, vec!["copy_folder"])
+
+    fs::create_dir("clone_folder")?;
+    create_tree(initial_tree, vec!["clone_folder"])
 }
 
 fn create_tree(
@@ -36,6 +38,8 @@ fn create_tree(
                 let mut new_path = path_until_now.clone();
                 new_path.push(&tree_object.file_name);
 
+                fs::create_dir_all(new_path.iter().collect::<PathBuf>())?;
+
                 num_files_written += create_tree(object_contents.contents, new_path)?;
             }
             ObjectFile::Other(object_contents) => {
@@ -43,6 +47,7 @@ fn create_tree(
                     .iter()
                     .collect::<PathBuf>()
                     .join(&tree_object.file_name);
+
                 fs::write(file_path, object_contents.contents)?;
                 num_files_written += 1;
             }

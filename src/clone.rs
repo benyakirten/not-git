@@ -111,6 +111,7 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<PackfileObject>), anyho
 
     let checkout_config = checkout::CheckoutConfig::new(get_branch_name(&head_ref.branch));
     checkout::checkout_branch(&checkout_config)?;
+
     Ok((head_ref, objects))
 }
 
