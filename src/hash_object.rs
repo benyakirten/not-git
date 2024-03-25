@@ -9,7 +9,7 @@ use sha1::{Digest, Sha1};
 
 use crate::{
     objects::{ObjectHash, ObjectType},
-    utils::{create_header, read_from_file},
+    utils::create_header,
 };
 
 struct HashObjectConfig {
@@ -18,7 +18,7 @@ struct HashObjectConfig {
 
 pub fn hash_object_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_config(args)?;
-    let mut file_contents = read_from_file(config.file.as_str())?;
+    let mut file_contents = fs::read(config.file.as_str())?;
 
     let hash = hash_and_write_object(&ObjectType::Blob, &mut file_contents)?;
     print!("{}", &hash.full_hash());

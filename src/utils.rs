@@ -1,24 +1,15 @@
 use std::fs;
 use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use anyhow::Context;
 use flate2::read::ZlibDecoder;
 
 use crate::objects::ObjectType;
 
-/// Utiltiy function for reading the contents of a file.
-pub fn read_from_file<P: AsRef<Path>>(path: P) -> Result<Vec<u8>, anyhow::Error> {
-    let mut file = fs::File::open(path)?;
-    let mut content = vec![];
-    file.read_to_end(&mut content)?;
-
-    Ok(content)
-}
-
 /// Utility function for decoding a file that has been encoded with zlib.
 pub fn decode_file(path: PathBuf) -> Result<Vec<u8>, anyhow::Error> {
-    let encoded_content = read_from_file(path)?;
+    let encoded_content = fs::read(path)?;
 
     let mut decoder = ZlibDecoder::new(encoded_content.as_slice());
 

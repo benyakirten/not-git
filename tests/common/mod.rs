@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::PathBuf;
 
+// TODO: Figure out if we can make this into a macro
+
 pub fn setup() -> PathBuf {
     let test_dir_name = uuid::Uuid::new_v4().to_string();
     let test_dir = [".test", &test_dir_name].iter().collect::<PathBuf>();

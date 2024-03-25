@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use not_git::objects::ObjectType;
-use not_git::utils::{create_header, get_head_ref, read_from_file, split_header_from_contents};
+use not_git::utils::{create_header, get_head_ref, split_header_from_contents};
 
 mod common;
 
@@ -82,20 +82,6 @@ fn test_get_head_ref_error_improper_format() {
 
     let result = get_head_ref(None);
     assert!(result.is_err());
-
-    common::cleanup(path);
-}
-
-#[test]
-fn test_read_from_file_success() {
-    let path = common::setup();
-    let content = b"test file content";
-
-    let file_path = path.join("test_file");
-    fs::write(&file_path, content).unwrap();
-
-    let read_content = read_from_file(&file_path).unwrap();
-    assert_eq!(read_content, content);
 
     common::cleanup(path);
 }

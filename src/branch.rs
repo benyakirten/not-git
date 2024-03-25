@@ -1,8 +1,9 @@
+use std::fs;
 use std::path::PathBuf;
 
 use crate::objects::ObjectHash;
 use crate::update_refs;
-use crate::utils::{get_head_ref, read_from_file};
+use crate::utils::get_head_ref;
 
 pub enum BranchConfig {
     List(bool),
@@ -77,7 +78,7 @@ fn create_branch(branch_name: String) -> Result<(), anyhow::Error> {
     }
 
     let head_commit = {
-        let head_commit = read_from_file(&head_path)?;
+        let head_commit = fs::read(&head_path)?;
         let head_commit = String::from_utf8(head_commit)?;
         ObjectHash::new(&head_commit)?
     };

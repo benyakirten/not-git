@@ -1,8 +1,8 @@
-use std::env;
 use std::path::PathBuf;
+use std::{env, fs};
 
+use crate::hash_object;
 use crate::objects::{ObjectHash, ObjectType};
-use crate::{hash_object, utils};
 
 enum TreeFileType {
     Tree(Vec<TreeFile>),
@@ -72,7 +72,7 @@ fn build_tree_from_path(path: PathBuf) -> Result<Vec<TreeFile>, anyhow::Error> {
         let sha = match tree_file_type {
             TreeFileType::Error(e) => return Err(e),
             TreeFileType::Other(object_type, path) => {
-                let mut file_contents = utils::read_from_file(path)?;
+                let mut file_contents = fs::read(path)?;
                 let hash = hash_object::hash_and_write_object(&object_type, &mut file_contents)?;
                 hash.full_hash()
             }
