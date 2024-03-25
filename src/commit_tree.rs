@@ -9,18 +9,27 @@ pub struct CommitTreeConfig {
     pub tree_hash: ObjectHash,
     pub message: String,
     pub parent_hash: Option<ObjectHash>,
-    // TODO: Add author and committer - figure out how git gets the values.
+}
+
+impl CommitTreeConfig {
+    pub fn new(tree_hash: ObjectHash, message: String, parent_hash: Option<ObjectHash>) -> Self {
+        CommitTreeConfig {
+            tree_hash,
+            message,
+            parent_hash,
+        }
+    }
 }
 
 pub fn commit_tree_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_commit_tree_config(args)?;
-    let hash = commit_tree(config)?;
+    let hash = create_commit(config)?;
 
     println!("{}", hash.full_hash());
     Ok(())
 }
 
-pub fn commit_tree(config: CommitTreeConfig) -> Result<ObjectHash, anyhow::Error> {
+pub fn create_commit(config: CommitTreeConfig) -> Result<ObjectHash, anyhow::Error> {
     let mut contents = create_file_contents(config)?;
     let hash = hash_object::hash_and_write_object(&ObjectType::Commit, &mut contents)?;
 
