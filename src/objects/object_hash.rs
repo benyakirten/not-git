@@ -47,3 +47,67 @@ impl From<&ObjectHash> for PathBuf {
             .collect()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_valid_hash() {
+        let hash = "0123456789abcdef0123456789abcdef01234567";
+        let object_hash = ObjectHash::new(hash).unwrap();
+        assert_eq!(object_hash.prefix, "01");
+        assert_eq!(object_hash.hash, "23456789abcdef0123456789abcdef01234567");
+    }
+
+    #[test]
+    fn test_new_invalid_hash() {
+        let hash = "0123456789abcdef0123456789abcdef0123456"; // Invalid length
+        let result = ObjectHash::new(hash);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_from_bytes_valid_hash() {
+        let bytes = [
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+        ];
+        let object_hash = ObjectHash::from_bytes(&bytes).unwrap();
+        assert_eq!(object_hash.prefix, "01");
+        assert_eq!(object_hash.hash, "02030405060708090a0b0c0d0e0f1011121314");
+    }
+
+    #[test]
+    fn test_from_bytes_invalid_hash() {
+        let bytes = [
+            1, 35, 69, 103, 137, 171, 205, 239, 1, 35, 69, 103, 137, 171, 205, 239, 1,
+        ]; // Invalid length
+        let result = ObjectHash::from_bytes(&bytes);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_full_hash() {
+        let object_hash = ObjectHash {
+            prefix: "01".to_string(),
+            hash: "23456789abcdef0123456789abcdef01234567".to_string(),
+        };
+        assert_eq!(
+            object_hash.full_hash(),
+            "0123456789abcdef0123456789abcdef01234567"
+        );
+    }
+
+    #[test]
+    fn test_path() {
+        let object_hash = ObjectHash {
+            prefix: "01".to_string(),
+            hash: "23456789abcdef0123456789abcdef01234567".to_string(),
+        };
+        let path = object_hash.path();
+        assert_eq!(
+            path,
+            PathBuf::from("not-git/objects/01/23456789abcdef0123456789abcdef01234567")
+        );
+    }
+}
