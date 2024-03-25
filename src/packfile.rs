@@ -3,7 +3,8 @@ use std::io::{Cursor, ErrorKind, Read};
 use anyhow::Context;
 use flate2::bufread::ZlibDecoder;
 
-use crate::{hash_object, objects::ObjectHash, objects::ObjectType};
+use crate::hash_object;
+use crate::objects::{ObjectHash, ObjectType};
 
 const VARINT_ENCODING_BITS: u8 = 7;
 

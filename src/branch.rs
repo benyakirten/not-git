@@ -1,10 +1,8 @@
 use std::path::PathBuf;
 
-use crate::{
-    objects::ObjectHash,
-    update_refs::{self, UpdateRefsConfig},
-    utils::{get_head_ref, read_from_file},
-};
+use crate::objects::ObjectHash;
+use crate::update_refs;
+use crate::utils::{get_head_ref, read_from_file};
 
 pub enum BranchConfig {
     List(bool),
@@ -84,7 +82,7 @@ fn create_branch(branch_name: String) -> Result<(), anyhow::Error> {
         ObjectHash::new(&head_commit)?
     };
 
-    let config = UpdateRefsConfig::new(head_commit, PathBuf::from(branch_name));
+    let config = update_refs::UpdateRefsConfig::new(head_commit, PathBuf::from(branch_name));
     update_refs::update_refs(config)?;
 
     Ok(())

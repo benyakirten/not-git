@@ -1,5 +1,6 @@
 use std::fs;
-use std::{io::Cursor, path::PathBuf};
+use std::io::Cursor;
+use std::path::PathBuf;
 
 use bytes::Bytes;
 
@@ -7,7 +8,7 @@ use reqwest::blocking::Client;
 use reqwest::header::CONTENT_TYPE;
 
 use crate::objects::{ObjectHash, ObjectType};
-use crate::packfile::{self, PackfileHeader, PackfileObject};
+use crate::packfile;
 use crate::{checkout, init, update_refs};
 
 const TEMP_DIR: &str = ".tmp";
@@ -59,7 +60,9 @@ pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-pub fn perform_clone(config: CloneConfig) -> Result<(GitRef, Vec<PackfileObject>), anyhow::Error> {
+pub fn perform_clone(
+    config: CloneConfig,
+) -> Result<(GitRef, Vec<packfile::PackfileObject>), anyhow::Error> {
     let dest_dir = match config.path {
         Some(path) => PathBuf::from(path),
         None => PathBuf::from("clone_folder"),
@@ -87,7 +90,9 @@ fn get_branch_name(branch: &str) -> String {
     }
 }
 
-pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<PackfileObject>), anyhow::Error> {
+pub fn clone(
+    config: CloneConfig,
+) -> Result<(GitRef, Vec<packfile::PackfileObject>), anyhow::Error> {
     // https://www.git-scm.com/docs/http-protocol
     // We could use async functions or we could run this as single-threaded with blocking calls
     // We will use blocking calls for simplicity/ease of use. I don't think there's a part that
@@ -147,7 +152,7 @@ pub fn download_commit(
     hash: &ObjectHash,
 ) -> Result<Vec<packfile::PackfileObject>, anyhow::Error> {
     let commit = get_commit(client, url, hash)?;
-    let header = PackfileHeader::from_bytes(commit[..20].to_vec())?;
+    let header = packfile::PackfileHeader::from_bytes(commit[..20].to_vec())?;
 
     let mut objects: Vec<packfile::PackfileObject> = vec![];
     let mut cursor = Cursor::new(&commit[20..]);
@@ -181,7 +186,7 @@ pub fn download_commit(
             }
         };
 
-        let object = PackfileObject {
+        let object = packfile::PackfileObject {
             position,
             object_type,
             data,

@@ -1,8 +1,6 @@
-use std::{
-    fs,
-    io::Read,
-    path::{Path, PathBuf},
-};
+use std::fs;
+use std::io::Read;
+use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use flate2::read::ZlibDecoder;

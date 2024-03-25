@@ -1,10 +1,10 @@
-use std::{path::PathBuf, str::FromStr};
+use std::path::PathBuf;
+use std::str::FromStr;
 
 use anyhow::Context;
 
-use crate::utils::{decode_file, split_header_from_contents};
-
 use super::{ObjectHash, ObjectType, TreeObject};
+use crate::utils::{decode_file, split_header_from_contents};
 
 /// A representation of a git object file. Trees are unique in that the contents
 /// cannot be parsed to a string once decoded from Zlib since the file shas will

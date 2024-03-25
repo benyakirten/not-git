@@ -1,9 +1,7 @@
 use std::io::Write;
 
-use crate::{
-    hash_object,
-    objects::{ObjectHash, ObjectType},
-};
+use crate::hash_object;
+use crate::objects::{ObjectHash, ObjectType};
 
 pub struct CommitTreeConfig {
     pub tree_hash: ObjectHash,

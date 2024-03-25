@@ -1,7 +1,5 @@
-use std::{
-    fs::{self, read_to_string},
-    path::PathBuf,
-};
+use std::fs;
+use std::path::PathBuf;
 
 use anyhow::Context;
 
@@ -64,7 +62,7 @@ fn get_initial_tree(config: &CheckoutConfig) -> Result<Vec<TreeObject>, anyhow::
     };
 
     let branch_path = path.join(&config.branch_name);
-    let commit_hash = read_to_string(branch_path)?;
+    let commit_hash = fs::read_to_string(branch_path)?;
     let commit_hash = ObjectHash::new(&commit_hash)?;
 
     let object_file = ObjectFile::new(&commit_hash).context(format!(

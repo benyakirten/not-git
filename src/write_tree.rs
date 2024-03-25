@@ -1,10 +1,8 @@
-use std::{env, path::PathBuf};
+use std::env;
+use std::path::PathBuf;
 
-use crate::{
-    hash_object,
-    objects::{ObjectHash, ObjectType},
-    utils,
-};
+use crate::objects::{ObjectHash, ObjectType};
+use crate::{hash_object, utils};
 
 enum TreeFileType {
     Tree(Vec<TreeFile>),

@@ -1,6 +1,9 @@
-use std::{fs, io::Write, path::PathBuf};
+use std::fs;
+use std::io::Write;
+use std::path::PathBuf;
 
-use flate2::{write::ZlibEncoder, Compression};
+use flate2::write::ZlibEncoder;
+use flate2::Compression;
 use hex::ToHex;
 use sha1::{Digest, Sha1};
 

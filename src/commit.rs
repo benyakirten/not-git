@@ -2,13 +2,9 @@ use std::{fs, path::PathBuf};
 
 use anyhow::Context;
 
-use crate::{
-    commit_tree,
-    objects::{ObjectFile, ObjectHash, ObjectType},
-    update_refs,
-    utils::get_head_ref,
-    write_tree,
-};
+use crate::objects::{ObjectFile, ObjectHash, ObjectType};
+use crate::utils::get_head_ref;
+use crate::{commit_tree, update_refs, write_tree};
 
 pub struct CommitConfig {
     message: String,
