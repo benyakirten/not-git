@@ -47,7 +47,7 @@ impl GitRef {
 
 pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_clone_config(args)?;
-    let (head_ref, objects) = clone(config)?;
+    let (head_ref, objects) = perform_clone(config)?;
 
     println!(
         "Cloned {} objects into repository successfully.",
@@ -68,6 +68,7 @@ pub fn perform_clone(config: CloneConfig) -> Result<(GitRef, Vec<PackfileObject>
 
     let (head_ref, objects) = match clone(config) {
         Ok((head_ref, objects)) => {
+            std::env::set_current_dir(PathBuf::from("/"))?;
             fs::create_dir_all(&dest_dir)?;
             copy_dir(&PathBuf::from(TEMP_DIR), &dest_dir)?;
             (head_ref, objects)
