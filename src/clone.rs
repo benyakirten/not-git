@@ -8,7 +8,6 @@ use reqwest::header::CONTENT_TYPE;
 
 use crate::objects::{ObjectHash, ObjectType};
 use crate::packfile::{self, PackfileHeader, PackfileObject};
-use crate::utils::copy_dir;
 use crate::{checkout, init, update_refs};
 
 const TEMP_DIR: &str = ".tmp";
@@ -68,15 +67,15 @@ pub fn perform_clone(config: CloneConfig) -> Result<(GitRef, Vec<PackfileObject>
 
     let (head_ref, objects) = match clone(config) {
         Ok((head_ref, objects)) => {
-            std::env::set_current_dir(PathBuf::from("/"))?;
-            fs::create_dir_all(&dest_dir)?;
-            copy_dir(&PathBuf::from(TEMP_DIR), &dest_dir)?;
+            std::env::set_current_dir("..")?;
+            fs::rename(TEMP_DIR, dest_dir)?;
             (head_ref, objects)
         }
-        Err(e) => return Err(e),
+        Err(e) => {
+            fs::remove_dir_all(".tmp")?;
+            return Err(e);
+        }
     };
-
-    std::fs::remove_dir_all(".tmp")?;
 
     Ok((head_ref, objects))
 }

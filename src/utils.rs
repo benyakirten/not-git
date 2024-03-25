@@ -60,27 +60,3 @@ pub fn split_header_from_contents(content: &[u8]) -> Result<(&[u8], &[u8]), anyh
     let body = split_content.next().context("Getting body")?;
     Ok((header, body))
 }
-
-pub fn copy_dir(src: &PathBuf, dest: &PathBuf) -> Result<(), anyhow::Error> {
-    if !src.is_dir() {
-        return Err(anyhow::anyhow!("Source is not a directory"));
-    }
-
-    if !dest.exists() {
-        fs::create_dir_all(dest)?;
-    }
-
-    for entry in fs::read_dir(src)? {
-        let entry = entry?;
-        let entry_path = entry.path();
-        let dest_path = dest.join(entry.file_name());
-
-        if entry_path.is_dir() {
-            copy_dir(&entry_path, &dest_path)?;
-        } else {
-            fs::copy(&entry_path, &dest_path)?;
-        }
-    }
-
-    Ok(())
-}
