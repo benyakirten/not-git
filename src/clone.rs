@@ -1,3 +1,4 @@
+use std::fs;
 use std::{io::Cursor, path::PathBuf};
 
 use bytes::Bytes;
@@ -7,6 +8,7 @@ use reqwest::header::CONTENT_TYPE;
 
 use crate::objects::{ObjectHash, ObjectType};
 use crate::packfile::{self, PackfileHeader, PackfileObject};
+use crate::utils::copy_dir;
 use crate::{checkout, init, update_refs};
 
 const TEMP_DIR: &str = ".tmp";
@@ -56,6 +58,26 @@ pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
     println!("On branch '{}'", branch_name);
 
     Ok(())
+}
+
+pub fn perform_clone(config: CloneConfig) -> Result<(GitRef, Vec<PackfileObject>), anyhow::Error> {
+    let dest_dir = match config.path {
+        Some(path) => PathBuf::from(path),
+        None => PathBuf::from("clone_folder"),
+    };
+
+    let (head_ref, objects) = match clone(config) {
+        Ok((head_ref, objects)) => {
+            fs::create_dir_all(&dest_dir)?;
+            copy_dir(&PathBuf::from(TEMP_DIR), &dest_dir)?;
+            (head_ref, objects)
+        }
+        Err(e) => return Err(e),
+    };
+
+    std::fs::remove_dir_all(".tmp")?;
+
+    Ok((head_ref, objects))
 }
 
 fn get_branch_name(branch: &str) -> String {
