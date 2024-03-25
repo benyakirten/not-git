@@ -1,10 +1,8 @@
 use std::path::PathBuf;
 
-use crate::{
-    file_hash::FileHash,
-    update_refs::{self, UpdateRefsConfig},
-    utils::{get_head_ref, read_from_file},
-};
+use crate::objects::ObjectHash;
+use crate::update_refs;
+use crate::utils::{get_head_ref, read_from_file};
 
 pub enum BranchConfig {
     List(bool),
@@ -54,7 +52,7 @@ fn delete_branch(branch_name: String) -> Result<DeleteBranchResults, anyhow::Err
     }
 
     let contents = std::fs::read_to_string(&path)?;
-    let contents = FileHash::from_sha(contents)?;
+    let contents = ObjectHash::new(&contents)?;
 
     std::fs::remove_file(&path)?;
 
@@ -81,13 +79,10 @@ fn create_branch(branch_name: String) -> Result<(), anyhow::Error> {
     let head_commit = {
         let head_commit = read_from_file(&head_path)?;
         let head_commit = String::from_utf8(head_commit)?;
-        FileHash::from_sha(head_commit)?
+        ObjectHash::new(&head_commit)?
     };
 
-    let config = UpdateRefsConfig {
-        commit_hash: head_commit,
-        path: PathBuf::from(branch_name),
-    };
+    let config = update_refs::UpdateRefsConfig::new(head_commit, PathBuf::from(branch_name));
     update_refs::update_refs(config)?;
 
     Ok(())

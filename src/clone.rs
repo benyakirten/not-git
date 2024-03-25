@@ -1,37 +1,53 @@
-use std::{io::Cursor, path::PathBuf};
+use std::fs;
+use std::io::Cursor;
+use std::path::PathBuf;
 
 use bytes::Bytes;
 
 use reqwest::blocking::Client;
 use reqwest::header::CONTENT_TYPE;
 
-use crate::{
-    checkout::{self, CheckoutConfig},
-    file_hash::FileHash,
-    init,
-    ls_tree::FileType,
-    packfile::{self, ObjectEntry, PackFileHeader},
-    update_refs,
-};
+use crate::objects::{ObjectHash, ObjectType};
+use crate::packfile;
+use crate::{checkout, init, update_refs};
 
-pub struct CloneConfig {
+const TEMP_DIR: &str = ".tmp";
+
+pub struct CloneConfig<'a> {
     pub url: String,
-    pub path: PathBuf,
+    pub path: Option<&'a str>,
+}
+
+impl<'a> CloneConfig<'a> {
+    pub fn new(url: String, path: Option<&'a str>) -> Self {
+        CloneConfig { url, path }
+    }
 }
 
 #[derive(Debug)]
 pub struct GitRef {
     #[allow(dead_code)]
-    pub mode: String,
-    pub commit_hash: FileHash,
+    mode: String,
+    pub commit_hash: ObjectHash,
     #[allow(dead_code)]
     pub branch: String,
-    pub is_head: bool,
+    is_head: bool,
+}
+
+impl GitRef {
+    pub fn new(mode: String, commit_hash: ObjectHash, branch: String, is_head: bool) -> Self {
+        GitRef {
+            mode,
+            commit_hash,
+            branch,
+            is_head,
+        }
+    }
 }
 
 pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_clone_config(args)?;
-    let (head_ref, objects) = clone(config)?;
+    let (head_ref, objects) = perform_clone(config)?;
 
     println!(
         "Cloned {} objects into repository successfully.",
@@ -44,19 +60,46 @@ pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+pub fn perform_clone(
+    config: CloneConfig,
+) -> Result<(GitRef, Vec<packfile::PackfileObject>), anyhow::Error> {
+    let dest_dir = match config.path {
+        Some(path) => PathBuf::from(path),
+        None => PathBuf::from("clone_folder"),
+    };
+
+    let (head_ref, objects) = match clone(config) {
+        Ok((head_ref, objects)) => {
+            std::env::set_current_dir("..")?;
+            fs::rename(TEMP_DIR, dest_dir)?;
+            (head_ref, objects)
+        }
+        Err(e) => {
+            fs::remove_dir_all(".tmp")?;
+            return Err(e);
+        }
+    };
+
+    Ok((head_ref, objects))
+}
+
 fn get_branch_name(branch: &str) -> String {
-    if branch.starts_with("refs/heads/") {
-        branch.split_once("refs/heads/").unwrap().1.to_string()
-    } else {
-        branch.to_string()
+    match branch.split_once("refs/heads/") {
+        Some((_, branch)) => branch.to_string(),
+        None => branch.to_string(),
     }
 }
 
-pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<ObjectEntry>), anyhow::Error> {
+pub fn clone(
+    config: CloneConfig,
+) -> Result<(GitRef, Vec<packfile::PackfileObject>), anyhow::Error> {
     // https://www.git-scm.com/docs/http-protocol
     // We could use async functions or we could run this as single-threaded with blocking calls
     // We will use blocking calls for simplicity/ease of use. I don't think there's a part that
     // would benefit from async calls yet.
+    std::fs::create_dir(TEMP_DIR)?;
+    std::env::set_current_dir(TEMP_DIR)?;
+
     let client = Client::new();
     let mut refs = discover_references(
         &client,
@@ -73,37 +116,31 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<ObjectEntry>), anyhow::
 
     // TODO: Write all files to a temporary directory
     // If successful, move all files and folders over to .git and delete temporary directory
-
     // Header will contain the following:
     // 1. 0008NAK\n - because we have ended negotiation
     // 2. 4-byte signature which can be stringified to PACK
     // 3. 4-byte version number - always 2 or 3
     // 4. 4-byte number of objects
 
-    let init_config = init::InitConfig {
-        commit_name: head_ref.branch.to_string(),
+    // The whole ref name is ref/heads/{branch_name} - we want the last part
+    let head_path = match head_ref.branch.split_once("refs/heads/") {
+        Some((_, branch)) => branch,
+        None => head_ref.branch.as_str(),
     };
+
+    let init_config = init::InitConfig::new(head_path, None);
     init::create_directories(init_config)?;
 
-    // The whole ref name is ref/heads/{branch_name} - we want the last part
-    let head_path = head_ref
-        .branch
-        .split('/')
-        .last()
-        .ok_or_else(|| anyhow::anyhow!("Unable to parse head branch name"))?;
+    let objects = download_commit(&client, &config.url, &head_ref.commit_hash)?;
 
-    let update_ref_config = update_refs::UpdateRefsConfig {
-        commit_hash: FileHash::from_sha(head_ref.commit_hash.full_hash())?,
-        path: PathBuf::from(head_path),
-    };
-
+    // Update HEAD ref
+    // Requires the commit to already be written to a file.
+    let commit_hash = ObjectHash::new(&head_ref.commit_hash.full_hash())?;
+    let path = PathBuf::from(head_path);
+    let update_ref_config = update_refs::UpdateRefsConfig::new(commit_hash, path);
     update_refs::update_refs(update_ref_config)?;
 
-    let objects = download_commit(&client, &config.url, &head_ref.commit_hash)?;
-    let checkout_config = CheckoutConfig {
-        branch_name: get_branch_name(&head_ref.branch),
-    };
-
+    let checkout_config = checkout::CheckoutConfig::new(get_branch_name(&head_ref.branch));
     checkout::checkout_branch(&checkout_config)?;
 
     Ok((head_ref, objects))
@@ -112,12 +149,12 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<ObjectEntry>), anyhow::
 pub fn download_commit(
     client: &Client,
     url: &str,
-    hash: &FileHash,
-) -> Result<Vec<ObjectEntry>, anyhow::Error> {
+    hash: &ObjectHash,
+) -> Result<Vec<packfile::PackfileObject>, anyhow::Error> {
     let commit = get_commit(client, url, hash)?;
-    let header = PackFileHeader::from_bytes(commit[..20].to_vec())?;
+    let header = packfile::PackfileHeader::from_bytes(commit[..20].to_vec())?;
 
-    let mut objects: Vec<ObjectEntry> = vec![];
+    let mut objects: Vec<packfile::PackfileObject> = vec![];
     let mut cursor = Cursor::new(&commit[20..]);
 
     for _ in 0..header.num_objects {
@@ -125,31 +162,31 @@ pub fn download_commit(
         let object_type = packfile::read_type_and_length(&mut cursor)?;
 
         let ((data, file_hash, file_type), size) = match object_type {
-            packfile::ObjectType::Commit(size) => (
-                packfile::decode_undeltified_data(FileType::Commit, &mut cursor)?,
+            packfile::PackfileObjectType::Commit(size) => (
+                packfile::decode_undeltified_data(ObjectType::Commit, &mut cursor)?,
                 size,
             ),
-            packfile::ObjectType::Tree(size) => (
-                packfile::decode_undeltified_data(FileType::Tree, &mut cursor)?,
+            packfile::PackfileObjectType::Tree(size) => (
+                packfile::decode_undeltified_data(ObjectType::Tree, &mut cursor)?,
                 size,
             ),
-            packfile::ObjectType::Blob(size) => (
-                packfile::decode_undeltified_data(FileType::Blob, &mut cursor)?,
+            packfile::PackfileObjectType::Blob(size) => (
+                packfile::decode_undeltified_data(ObjectType::Blob, &mut cursor)?,
                 size,
             ),
-            packfile::ObjectType::Tag(size) => (
-                packfile::decode_undeltified_data(FileType::Tag, &mut cursor)?,
+            packfile::PackfileObjectType::Tag(size) => (
+                packfile::decode_undeltified_data(ObjectType::Tag, &mut cursor)?,
                 size,
             ),
-            packfile::ObjectType::OfsDelta(size) => {
+            packfile::PackfileObjectType::OfsDelta(size) => {
                 (packfile::read_obj_offset_data(&objects, &mut cursor)?, size)
             }
-            packfile::ObjectType::RefDelta(size) => {
+            packfile::PackfileObjectType::RefDelta(size) => {
                 (packfile::read_obj_ref_data(&objects, &mut cursor)?, size)
             }
         };
 
-        let object = ObjectEntry {
+        let object = packfile::PackfileObject {
             position,
             object_type,
             data,
@@ -169,7 +206,11 @@ pub fn download_commit(
     Ok(objects)
 }
 
-fn get_commit(client: &Client, url: &str, commit_hash: &FileHash) -> Result<Bytes, anyhow::Error> {
+fn get_commit(
+    client: &Client,
+    url: &str,
+    commit_hash: &ObjectHash,
+) -> Result<Bytes, anyhow::Error> {
     let request_url = format!("{}/git-upload-pack", url);
     // 0000 is the termination code
     // 0009done is added to indicate that this is the final request in negotiation
@@ -290,7 +331,7 @@ fn discover_references(
         .next()
         .ok_or_else(|| anyhow::anyhow!("No HEAD line in packet"))?;
 
-    let head_ref = FileHash::from_sha(head_line[8..48].to_string())?;
+    let head_ref = ObjectHash::new(head_line[8..48].as_ref())?;
 
     let refs: Vec<GitRef> = lines
         .filter_map(|line| {
@@ -301,7 +342,7 @@ fn discover_references(
 
             let mode = mode_and_hash[0..4].to_string();
             let commit_hash = mode_and_hash[4..].to_string();
-            let commit_hash = match FileHash::from_sha(commit_hash) {
+            let commit_hash = match ObjectHash::new(&commit_hash) {
                 Ok(hash) => hash,
                 Err(_) => return None,
             };
@@ -327,10 +368,11 @@ fn parse_clone_config(args: &[String]) -> Result<CloneConfig, anyhow::Error> {
 
     let url = args[0].to_string();
     let path = if args.len() == 2 {
-        PathBuf::from(&args[1])
+        Some(args[1].as_ref())
     } else {
-        PathBuf::from(".")
+        None
     };
 
-    Ok(CloneConfig { url, path })
+    let config = CloneConfig::new(url, path);
+    Ok(config)
 }

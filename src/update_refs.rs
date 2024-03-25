@@ -1,40 +1,50 @@
 use std::fs;
 use std::path::PathBuf;
 
-use crate::file_hash::FileHash;
+use crate::objects::{ObjectFile, ObjectHash, ObjectType};
 
+#[derive(Debug)]
 pub struct UpdateRefsConfig {
-    pub commit_hash: FileHash,
-    pub path: PathBuf,
+    commit_hash: ObjectHash,
+    path: PathBuf,
 }
 
-pub fn update_refs_command(args: &[String]) -> Result<(), anyhow::Error> {
-    let config = parse_update_refs_config(args)?;
-    update_refs(config)
+impl UpdateRefsConfig {
+    pub fn new(commit_hash: ObjectHash, path: PathBuf) -> Self {
+        Self { commit_hash, path }
+    }
+
+    pub fn hash(&self) -> &ObjectHash {
+        &self.commit_hash
+    }
+
+    pub fn path(&self) -> PathBuf {
+        ["not-git", "refs", "heads"]
+            .iter()
+            .collect::<PathBuf>()
+            .join(&self.path)
+    }
 }
 
 pub fn update_refs(config: UpdateRefsConfig) -> Result<(), anyhow::Error> {
-    let path = ["not-git", "refs", "heads"]
-        .iter()
-        .collect::<PathBuf>()
-        .join(config.path);
+    validate_hash_as_commit(config.hash())?;
+
+    let path = config.path();
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
 
-    // TODO: Validate hash points to a commit object.
     fs::write(&path, config.commit_hash.full_hash())?;
 
     Ok(())
 }
 
-pub fn parse_update_refs_config(args: &[String]) -> Result<UpdateRefsConfig, anyhow::Error> {
-    if args.len() < 2 {
-        return Err(anyhow::anyhow!("Usage: update-refs <ref> <hash>"));
+fn validate_hash_as_commit(hash: &ObjectHash) -> Result<(), anyhow::Error> {
+    match ObjectFile::new(hash)? {
+        ObjectFile::Tree(_) => Err(anyhow::anyhow!("Expected commit object")),
+        ObjectFile::Other(object_contents) => match object_contents.object_type {
+            ObjectType::Commit => Ok(()),
+            _ => Err(anyhow::anyhow!("Expected commit object")),
+        },
     }
-
-    let path = PathBuf::from(&args[0]);
-    let commit_hash = FileHash::from_sha(args[1].to_string())?;
-
-    Ok(UpdateRefsConfig { commit_hash, path })
 }

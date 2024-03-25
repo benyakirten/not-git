@@ -1,45 +1,40 @@
-use std::fmt::Debug;
-use std::{env, path::PathBuf};
+use std::env;
+use std::path::PathBuf;
 
-use crate::file_hash::FileHash;
-use crate::ls_tree::FileType;
+use crate::objects::{ObjectHash, ObjectType};
 use crate::{hash_object, utils};
 
 enum TreeFileType {
     Tree(Vec<TreeFile>),
-    Other(FileType, PathBuf),
+    Other(ObjectType, PathBuf),
     Error(anyhow::Error),
 }
 
-impl Debug for TreeFileType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TreeFileType::Tree(_) => write!(f, "TreeFileType::Tree"),
-            TreeFileType::Other(_, _) => write!(f, "TreeFileType::Other"),
-            TreeFileType::Error(_) => write!(f, "TreeFileType::Error"),
-        }
-    }
-}
-
 struct TreeFile {
-    file_type: FileType,
+    object_type: ObjectType,
     file_name: String,
     sha: String,
 }
 
-pub fn write_tree_command(_: &[String]) -> Result<(), anyhow::Error> {
-    let sha = write_tree()?;
-    println!("{}", sha.full_hash());
-
-    Ok(())
+impl TreeFile {
+    fn new(object_type: ObjectType, file_name: String, sha: String) -> Self {
+        Self {
+            object_type,
+            file_name,
+            sha,
+        }
+    }
 }
 
-pub fn write_tree() -> Result<FileHash, anyhow::Error> {
-    let path = env::current_dir()?;
+pub fn write_tree(path: Option<&str>) -> Result<ObjectHash, anyhow::Error> {
+    let path = match path {
+        None => env::current_dir()?,
+        Some(path) => PathBuf::from(path),
+    };
     let mut root_tree = build_tree_from_path(path)?;
 
     let sha = hash_tree(&mut root_tree)?;
-    let sha = FileHash::from_sha(sha)?;
+    let sha = ObjectHash::new(&sha)?;
 
     Ok(sha)
 }
@@ -49,8 +44,8 @@ fn build_tree_from_path(path: PathBuf) -> Result<Vec<TreeFile>, anyhow::Error> {
 
     for entry in path.read_dir()? {
         let entry = entry?;
-        entry.metadata()?;
-        let file_type = FileType::from_entry(&entry)?;
+
+        let object_type = ObjectType::from_entry(&entry)?;
         let file_name = entry
             .file_name()
             .to_str()
@@ -66,29 +61,26 @@ fn build_tree_from_path(path: PathBuf) -> Result<Vec<TreeFile>, anyhow::Error> {
             continue;
         }
 
-        let tree_file_type = match file_type {
-            FileType::Tree => match build_tree_from_path(entry.path()) {
+        let tree_file_type = match object_type {
+            ObjectType::Tree => match build_tree_from_path(entry.path()) {
                 Ok(tree_file) => TreeFileType::Tree(tree_file),
                 Err(e) => TreeFileType::Error(e),
             },
-            _ => TreeFileType::Other(file_type.clone(), entry.path()),
+            _ => TreeFileType::Other(object_type.clone(), entry.path()),
         };
 
         let sha = match tree_file_type {
             TreeFileType::Error(e) => return Err(e),
-            TreeFileType::Other(file_type, path) => {
+            TreeFileType::Other(object_type, path) => {
                 let mut file_contents = utils::read_from_file(path)?;
-                let hash = hash_object::hash_and_write_object(&file_type, &mut file_contents)?;
+                let hash = hash_object::hash_and_write_object(&object_type, &mut file_contents)?;
                 hash.full_hash()
             }
             TreeFileType::Tree(mut tree_files) => hash_tree(&mut tree_files)?,
         };
 
-        tree_files.push(TreeFile {
-            file_type,
-            file_name: file_name.to_string(),
-            sha,
-        });
+        let tree_file = TreeFile::new(object_type, file_name, sha);
+        tree_files.push(tree_file);
     }
 
     Ok(tree_files)
@@ -99,7 +91,7 @@ fn hash_tree(tree_files: &mut Vec<TreeFile>) -> Result<String, anyhow::Error> {
 
     let mut tree_content = Vec::new();
     for tree_file in tree_files {
-        let file_type = tree_file.file_type.to_number_string();
+        let file_type = tree_file.object_type.to_mode();
         let file_name = &tree_file.file_name;
         let sha = &tree_file.sha;
 
@@ -140,6 +132,6 @@ fn hash_tree(tree_files: &mut Vec<TreeFile>) -> Result<String, anyhow::Error> {
         tree_content.append(&mut sha_bytes);
     }
 
-    let hash = hash_object::hash_and_write_object(&FileType::Tree, &mut tree_content)?;
+    let hash = hash_object::hash_and_write_object(&ObjectType::Tree, &mut tree_content)?;
     Ok(hash.full_hash())
 }

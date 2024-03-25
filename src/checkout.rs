@@ -1,77 +1,51 @@
-use std::{
-    fs::{self, read_to_string},
-    path::PathBuf,
-};
+use std::fs;
+use std::path::PathBuf;
 
 use anyhow::Context;
 
-use crate::{
-    cat_file::{self, CatFileConfig},
-    file_hash::FileHash,
-    ls_tree, utils,
-};
+use crate::objects::{ObjectFile, ObjectHash, ObjectType, TreeObject};
 
 pub struct CheckoutConfig {
-    pub branch_name: String,
+    branch_name: String,
 }
 
-pub fn checkout_command(args: &[String]) -> Result<(), anyhow::Error> {
-    let config = parse_checkout_config(args)?;
-    checkout_branch(&config)?;
-
-    println!("Switched to branch '{}'", config.branch_name);
-    Ok(())
+impl CheckoutConfig {
+    pub fn new(branch_name: String) -> Self {
+        Self { branch_name }
+    }
 }
 
 pub fn checkout_branch(config: &CheckoutConfig) -> Result<usize, anyhow::Error> {
     let initial_tree = get_initial_tree(config)?;
 
-    // TODO: Add parameter to copy all data to a folder.
-    fs::create_dir("clone_folder")?;
-    create_tree(initial_tree, vec!["clone_folder"])
+    create_tree(initial_tree, vec![])
 }
 
 fn create_tree(
-    tree_files: Vec<ls_tree::TreeFile>,
+    tree_objects: Vec<TreeObject>,
     path_until_now: Vec<&str>,
 ) -> Result<usize, anyhow::Error> {
     let mut num_files_written = 0;
 
-    for tree_file in tree_files {
-        match tree_file.file_type {
-            ls_tree::FileType::Tree => {
+    for tree_object in tree_objects {
+        let object: ObjectFile = ObjectFile::new(&tree_object.hash)?;
+
+        match object {
+            ObjectFile::Tree(object_contents) => {
                 let mut new_path = path_until_now.clone();
-                new_path.push(&tree_file.file_name);
+                new_path.push(&tree_object.file_name);
 
-                let folder_path: PathBuf = new_path.iter().collect();
-                fs::create_dir(folder_path)?;
+                fs::create_dir_all(new_path.iter().collect::<PathBuf>())?;
 
-                let decoded_content = utils::decode_file(
-                    [
-                        "not-git",
-                        "objects",
-                        &tree_file.hash.prefix,
-                        &tree_file.hash.hash,
-                    ]
-                    .iter()
-                    .collect(),
-                )?;
-                let new_tree_files = ls_tree::parse_tree_files(decoded_content)?;
-
-                num_files_written += create_tree(new_tree_files, new_path)?;
+                num_files_written += create_tree(object_contents.contents, new_path)?;
             }
-            _ => {
+            ObjectFile::Other(object_contents) => {
                 let file_path = path_until_now
                     .iter()
                     .collect::<PathBuf>()
-                    .join(&tree_file.file_name);
-                let cat_config = CatFileConfig {
-                    dir: tree_file.hash.prefix,
-                    file_name: tree_file.hash.hash,
-                };
-                let decoded_content = cat_file::decode_file(cat_config)?;
-                fs::write(file_path, decoded_content)?;
+                    .join(&tree_object.file_name);
 
+                fs::write(file_path, object_contents.contents)?;
                 num_files_written += 1;
             }
         }
@@ -80,7 +54,7 @@ fn create_tree(
     Ok(num_files_written)
 }
 
-fn get_initial_tree(config: &CheckoutConfig) -> Result<Vec<ls_tree::TreeFile>, anyhow::Error> {
+fn get_initial_tree(config: &CheckoutConfig) -> Result<Vec<TreeObject>, anyhow::Error> {
     let path: PathBuf = if config.branch_name.starts_with("remote") {
         ["not-git", "refs"].iter().collect()
     } else {
@@ -88,43 +62,41 @@ fn get_initial_tree(config: &CheckoutConfig) -> Result<Vec<ls_tree::TreeFile>, a
     };
 
     let branch_path = path.join(&config.branch_name);
-    let commit_sha = read_to_string(branch_path)?;
-    let commit_sha = FileHash::from_sha(commit_sha)?;
+    let commit_hash = fs::read_to_string(branch_path)?;
+    let commit_hash = ObjectHash::new(&commit_hash)?;
 
-    let cat_config = CatFileConfig {
-        dir: commit_sha.prefix,
-        file_name: commit_sha.hash,
-    };
-    let file_contents = cat_file::decode_file(cat_config).context(format!(
+    let object_file = ObjectFile::new(&commit_hash).context(format!(
         "Unable to find commit associated with branch {}",
         config.branch_name
     ))?;
 
-    let tree_hash = file_contents.lines().find(|line| line.starts_with("tree "));
+    let readable_contents = match object_file {
+        ObjectFile::Other(object_contents) => match object_contents.object_type {
+            ObjectType::Commit => String::from_utf8(object_contents.contents)
+                .context("Parsing commit object contents as utf8"),
+            _ => return Err(anyhow::anyhow!("Expected commit object")),
+        },
+        ObjectFile::Tree(_) => return Err(anyhow::anyhow!("Expected commit to be a tree object"))?,
+    }?;
+
+    let tree_hash = readable_contents
+        .lines()
+        .find(|line| line.starts_with("tree "));
     if tree_hash.is_none() {
         return Err(anyhow::anyhow!("No tree hash found in commit"));
     }
+
     let tree_hash = tree_hash
         .unwrap()
         .split_ascii_whitespace()
         .last()
         .ok_or_else(|| anyhow::anyhow!("No tree hash found in commit"))?;
-    let tree_hash = FileHash::from_sha(tree_hash.to_string())?;
 
-    let tree_path = ["not-git", "objects", &tree_hash.prefix, &tree_hash.hash]
-        .iter()
-        .collect::<PathBuf>();
-    let decoded_tree = utils::decode_file(tree_path)?;
+    let tree_hash = ObjectHash::new(tree_hash)?;
 
-    ls_tree::parse_tree_files(decoded_tree)
-}
-
-fn parse_checkout_config(args: &[String]) -> Result<CheckoutConfig, anyhow::Error> {
-    if args.is_empty() {
-        return Err(anyhow::anyhow!("Usage: checkout <branch-name>"));
+    let tree_object = ObjectFile::new(&tree_hash).context("Unable to find tree object")?;
+    match tree_object {
+        ObjectFile::Tree(tree_object) => Ok(tree_object.contents),
+        ObjectFile::Other(_) => Err(anyhow::anyhow!("Expected tree object")),
     }
-
-    Ok(CheckoutConfig {
-        branch_name: args[0].clone(),
-    })
 }

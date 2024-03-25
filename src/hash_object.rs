@@ -1,12 +1,14 @@
-use std::{fs, io::Write, path::PathBuf};
+use std::fs;
+use std::io::Write;
+use std::path::PathBuf;
 
-use flate2::{write::ZlibEncoder, Compression};
+use flate2::write::ZlibEncoder;
+use flate2::Compression;
 use hex::ToHex;
 use sha1::{Digest, Sha1};
 
 use crate::{
-    file_hash::FileHash,
-    ls_tree::FileType,
+    objects::{ObjectHash, ObjectType},
     utils::{create_header, read_from_file},
 };
 
@@ -18,16 +20,16 @@ pub fn hash_object_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_config(args)?;
     let mut file_contents = read_from_file(config.file.as_str())?;
 
-    let hash = hash_and_write_object(&FileType::Blob, &mut file_contents)?;
+    let hash = hash_and_write_object(&ObjectType::Blob, &mut file_contents)?;
     print!("{}", &hash.full_hash());
 
     Ok(())
 }
 
 pub fn hash_and_write_object(
-    file_type: &FileType,
+    file_type: &ObjectType,
     file_contents: &mut Vec<u8>,
-) -> Result<FileHash, anyhow::Error> {
+) -> Result<ObjectHash, anyhow::Error> {
     let mut header = create_header(file_type, file_contents);
 
     header.append(file_contents);
@@ -39,17 +41,21 @@ pub fn hash_and_write_object(
     Ok(hash)
 }
 
-fn write_encoded_object(hash: &FileHash, encoded_contents: Vec<u8>) -> Result<(), anyhow::Error> {
-    let path: PathBuf = ["not-git", "objects", &hash.prefix].iter().collect();
-    if !path.exists() {
-        fs::create_dir(&path)?;
+fn write_encoded_object(hash: &ObjectHash, encoded_contents: Vec<u8>) -> Result<(), anyhow::Error> {
+    let path: PathBuf = hash.path();
+
+    let parent = path
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("Invalid path"))?;
+    if !parent.exists() {
+        fs::create_dir_all(parent)?;
     }
 
-    fs::write(path.join(&hash.hash), encoded_contents)?;
+    fs::write(path, encoded_contents)?;
     Ok(())
 }
 
-fn hash_file(file: &Vec<u8>) -> Result<FileHash, anyhow::Error> {
+fn hash_file(file: &Vec<u8>) -> Result<ObjectHash, anyhow::Error> {
     let mut hasher = Sha1::new();
     hasher.update(file);
     let result: String = hasher.finalize().encode_hex();
@@ -60,10 +66,8 @@ fn hash_file(file: &Vec<u8>) -> Result<FileHash, anyhow::Error> {
         ));
     }
 
-    Ok(FileHash::new(
-        result[..2].to_string(),
-        result[2..].to_string(),
-    ))
+    let hash = ObjectHash::new(&result)?;
+    Ok(hash)
 }
 
 fn encode_file_contents(file_contents: Vec<u8>) -> Result<Vec<u8>, anyhow::Error> {

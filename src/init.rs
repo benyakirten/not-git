@@ -1,39 +1,37 @@
-use std::{fs, path::PathBuf};
+use std::fs;
+use std::path::PathBuf;
 
-pub struct InitConfig {
-    pub commit_name: String,
+pub struct InitConfig<'a> {
+    commit_name: &'a str,
+    directory: Option<&'a str>,
 }
 
-pub fn init_command(args: &[String]) -> Result<(), anyhow::Error> {
-    let config = parse_options(args);
-    create_directories(config)?;
-
-    println!("Initialized git directory.");
-    Ok(())
+impl<'a> InitConfig<'a> {
+    pub fn new(commit_name: &'a str, directory: Option<&'a str>) -> Self {
+        InitConfig {
+            commit_name,
+            directory,
+        }
+    }
 }
 
 // TODO: Allow the parent directory to be customized
 pub fn create_directories(config: InitConfig) -> Result<(), anyhow::Error> {
-    fs::create_dir_all(PathBuf::from("not-git/objects"))?;
-    fs::create_dir_all(PathBuf::from("not-git/refs/heads"))?;
+    let base_path: PathBuf = match config.directory {
+        Some(directory) => [directory, "not-git"].iter().collect(),
+        None => PathBuf::from("not-git"),
+    };
+
+    fs::create_dir_all(base_path.join("objects"))?;
+    fs::create_dir_all(base_path.join("refs/heads"))?;
     fs::write(
-        PathBuf::from("not-git/HEAD"),
+        base_path.join("HEAD"),
         format!("ref: refs/heads/{}\n", config.commit_name),
     )?;
     fs::write(
-        PathBuf::from("not-git/packed-refs"),
+        base_path.join("packed-refs"),
         "# pack-refs with: peeled fully-peeled sorted\n",
     )?;
 
     Ok(())
-}
-
-fn parse_options(args: &[String]) -> InitConfig {
-    let commit_name = if args.len() == 2 && args[0] == "-b" {
-        args[1].to_string()
-    } else {
-        "main".to_string()
-    };
-
-    InitConfig { commit_name }
 }

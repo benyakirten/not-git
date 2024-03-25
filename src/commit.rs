@@ -1,16 +1,19 @@
 use std::{fs, path::PathBuf};
 
-use crate::{
-    cat_file::{self, CatFileConfig},
-    commit_tree::{self, CommitTreeConfig},
-    file_hash::FileHash,
-    update_refs::{self, UpdateRefsConfig},
-    utils::get_head_ref,
-    write_tree,
-};
+use anyhow::Context;
+
+use crate::objects::{ObjectFile, ObjectHash, ObjectType};
+use crate::utils::get_head_ref;
+use crate::{commit_tree, update_refs, write_tree};
 
 pub struct CommitConfig {
-    pub message: String,
+    message: String,
+}
+
+impl CommitConfig {
+    pub fn new(message: String) -> Self {
+        CommitConfig { message }
+    }
 }
 
 pub fn commit_command(args: &[String]) -> Result<(), anyhow::Error> {
@@ -35,18 +38,14 @@ pub fn commit(config: CommitConfig) -> Result<(), anyhow::Error> {
         None => None,
     };
 
-    let tree_hash = write_tree::write_tree()?;
+    let tree_hash = write_tree::write_tree(None)?;
 
-    let commit_hash = commit_tree::commit_tree(CommitTreeConfig {
-        tree_hash,
-        message: config.message,
-        parent_hash,
-    })?;
+    let commit_tree_config =
+        commit_tree::CommitTreeConfig::new(tree_hash, config.message, parent_hash);
+    let commit_hash = commit_tree::create_commit(commit_tree_config)?;
 
-    let update_refs_config = UpdateRefsConfig {
-        commit_hash,
-        path: PathBuf::from(head_ref),
-    };
+    let update_refs_config =
+        update_refs::UpdateRefsConfig::new(commit_hash, PathBuf::from(head_ref));
     update_refs::update_refs(update_refs_config)?;
 
     Ok(())
@@ -59,10 +58,11 @@ fn parse_commit_config(args: &[String]) -> Result<CommitConfig, anyhow::Error> {
 
     let message = args[1].to_string();
 
-    Ok(CommitConfig { message })
+    let config = CommitConfig::new(message);
+    Ok(config)
 }
 
-fn get_parent_hash(head_ref: &str) -> Result<Option<FileHash>, anyhow::Error> {
+fn get_parent_hash(head_ref: &str) -> Result<Option<ObjectHash>, anyhow::Error> {
     let head_file_path = PathBuf::from(head_ref);
     let head_file_path = ["not-git", "refs", "heads"]
         .iter()
@@ -74,22 +74,26 @@ fn get_parent_hash(head_ref: &str) -> Result<Option<FileHash>, anyhow::Error> {
     }
 
     let current_commit_hash = fs::read_to_string(head_file_path)?;
-    let hash = FileHash::from_sha(current_commit_hash.trim().to_string())?;
+    let hash = ObjectHash::new(current_commit_hash.trim())?;
     Ok(Some(hash))
 }
 
-fn get_parent_commit(file_hash: FileHash) -> Result<Option<FileHash>, anyhow::Error> {
-    let cat_file_config = CatFileConfig {
-        dir: file_hash.prefix,
-        file_name: file_hash.hash,
-    };
-
-    let commit_content = cat_file::decode_file(cat_file_config)?;
+fn get_parent_commit(object_hash: ObjectHash) -> Result<Option<ObjectHash>, anyhow::Error> {
+    let commit = ObjectFile::new(&object_hash)?;
+    let commit_content = match commit {
+        ObjectFile::Tree(_) => Err(anyhow::anyhow!("Expected commit object")),
+        ObjectFile::Other(object_contents) => match object_contents.object_type {
+            ObjectType::Commit => String::from_utf8(object_contents.contents)
+                .context("Parsing commit content to string"),
+            _ => {
+                return Err(anyhow::anyhow!("Expected commit object"));
+            }
+        },
+    }?;
 
     for line in commit_content.lines() {
-        if let Some(hash_parts) = line.split_once("parent ") {
-            let hash = hash_parts.1;
-            let hash = FileHash::from_sha(hash.to_string())?;
+        if let Some((_, hash)) = line.split_once("parent ") {
+            let hash = ObjectHash::new(hash)?;
             return Ok(Some(hash));
         }
     }
