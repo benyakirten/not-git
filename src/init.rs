@@ -1,15 +1,17 @@
 use std::{fs, path::PathBuf};
 
 pub struct InitConfig {
-    pub commit_name: String,
+    commit_name: String,
+    directory: Option<String>,
 }
 
-pub fn init_command(args: &[String]) -> Result<(), anyhow::Error> {
-    let config = parse_options(args);
-    create_directories(config)?;
-
-    println!("Initialized git directory.");
-    Ok(())
+impl InitConfig {
+    pub fn new(commit_name: String, directory: Option<String>) -> Self {
+        InitConfig {
+            commit_name,
+            directory,
+        }
+    }
 }
 
 // TODO: Allow the parent directory to be customized
@@ -35,5 +37,5 @@ fn parse_options(args: &[String]) -> InitConfig {
         "main".to_string()
     };
 
-    InitConfig { commit_name }
+    InitConfig::new(commit_name, None)
 }
