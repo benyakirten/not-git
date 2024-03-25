@@ -5,7 +5,7 @@ use std::str::FromStr;
 /// git will use. The enum also contains relevant methods that will be used, such
 /// as converting back and forth to modes and to string.
 /// TODO: Examples + Links to documentation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ObjectType {
     Blob,
     Tree,
@@ -36,7 +36,7 @@ impl ObjectType {
             ObjectType::Executable => "100755",
             ObjectType::Symlink => "120000",
             ObjectType::Commit => "160000",
-            ObjectType::Tag => "",
+            ObjectType::Tag => "100644",
         }
     }
 
@@ -88,5 +88,68 @@ impl FromStr for ObjectType {
             "tag" => Ok(ObjectType::Tag),
             _ => Err(anyhow::anyhow!("Invalid file type")),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // TODO: Use macros to make these into parametrized tests
+    #[test]
+    fn test_from_mode() {
+        assert_eq!(ObjectType::from_mode("100644").unwrap(), ObjectType::Blob);
+        assert_eq!(ObjectType::from_mode("040000").unwrap(), ObjectType::Tree);
+        assert_eq!(
+            ObjectType::from_mode("100755").unwrap(),
+            ObjectType::Executable
+        );
+        assert_eq!(
+            ObjectType::from_mode("120000").unwrap(),
+            ObjectType::Symlink
+        );
+        assert!(ObjectType::from_mode("invalid_mode").is_err());
+    }
+
+    #[test]
+    fn test_to_mode() {
+        assert_eq!(ObjectType::Blob.to_mode(), "100644");
+        assert_eq!(ObjectType::Tree.to_mode(), "040000");
+        assert_eq!(ObjectType::Executable.to_mode(), "100755");
+        assert_eq!(ObjectType::Symlink.to_mode(), "120000");
+        assert_eq!(ObjectType::Commit.to_mode(), "160000");
+        assert_eq!(ObjectType::Tag.to_mode(), "");
+    }
+
+    #[test]
+    fn test_as_str() {
+        assert_eq!(ObjectType::Blob.as_str(), "blob");
+        assert_eq!(ObjectType::Tree.as_str(), "tree");
+        assert_eq!(ObjectType::Executable.as_str(), "executable");
+        assert_eq!(ObjectType::Symlink.as_str(), "symlink");
+        assert_eq!(ObjectType::Commit.as_str(), "commit");
+        assert_eq!(ObjectType::Tag.as_str(), "tag");
+    }
+
+    #[test]
+    fn test_from_str() {
+        assert_eq!(ObjectType::from_str("blob").unwrap(), ObjectType::Blob);
+        assert_eq!(ObjectType::from_str("tree").unwrap(), ObjectType::Tree);
+        assert_eq!(
+            ObjectType::from_str("executable").unwrap(),
+            ObjectType::Executable
+        );
+        assert_eq!(
+            ObjectType::from_str("symlink").unwrap(),
+            ObjectType::Symlink
+        );
+        assert_eq!(ObjectType::from_str("commit").unwrap(), ObjectType::Commit);
+        assert_eq!(ObjectType::from_str("tag").unwrap(), ObjectType::Tag);
+        assert!(ObjectType::from_str("invalid_type").is_err());
+    }
+
+    #[test]
+    fn test_from_entry() {
+        // TODO
     }
 }
