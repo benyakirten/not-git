@@ -33,9 +33,25 @@ pub fn create_header(object_type: &ObjectType, file: &[u8]) -> Vec<u8> {
     header.as_bytes().to_vec()
 }
 
-pub fn get_head_ref() -> Result<String, anyhow::Error> {
-    let head = ["not-git", "HEAD"].iter().collect::<PathBuf>();
+pub fn get_head_ref(base_path: Option<&PathBuf>) -> Result<String, anyhow::Error> {
+    let head = match base_path {
+        Some(path) => PathBuf::from(path),
+        None => std::env::current_dir()?,
+    };
+    let head = head
+        .join("not-git")
+        .join("HEAD")
+        .iter()
+        .collect::<PathBuf>();
+
     let head = fs::read_to_string(head)?;
+
+    if !head.starts_with("ref: ") {
+        return Err(anyhow::anyhow!(format!(
+            "Invalid HEAD file. Expected ref: refs/heads/<branch_name>, got {}",
+            head
+        )));
+    }
 
     let head_ref = head
         .split("refs/heads/")
@@ -62,6 +78,20 @@ pub fn split_header_from_contents(content: &[u8]) -> Result<(&[u8], &[u8]), anyh
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn setup() -> PathBuf {
+        let test_dir_name = uuid::Uuid::new_v4().to_string();
+        let test_dir = [".test", &test_dir_name].iter().collect::<PathBuf>();
+        if !test_dir.exists() {
+            fs::create_dir_all(&test_dir).unwrap();
+        }
+
+        test_dir
+    }
+
+    fn cleanup(path: PathBuf) {
+        fs::remove_dir_all(path).unwrap();
+    }
 
     #[test]
     fn split_header_from_contents_returns_header_and_body_success() {
@@ -101,11 +131,47 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // #[test]
-    // fn test_get_head_ref() {
-    //     let head_ref = get_head_ref().unwrap();
-    //     assert_eq!(head_ref, "branch_name");
-    // }
+    fn write_head_file(contents: &str) -> PathBuf {
+        let path = setup();
+        let head = path.join("not-git").join("HEAD");
+
+        fs::create_dir_all(head.parent().unwrap()).unwrap();
+        fs::write(head, contents).unwrap();
+
+        path
+    }
+
+    #[test]
+    fn test_get_head_ref_success() {
+        let branch_name: &str = "test_branch_name";
+        let path = write_head_file(&format!("ref: refs/heads/{}\n", branch_name));
+
+        let head_ref = get_head_ref(Some(&path)).unwrap();
+        assert_eq!(head_ref, branch_name);
+
+        cleanup(path);
+    }
+
+    #[test]
+    fn test_get_head_ref_error_no_file() {
+        let path = setup();
+
+        let result = get_head_ref(None);
+        assert!(result.is_err());
+
+        cleanup(path);
+    }
+
+    #[test]
+    fn test_get_head_ref_error_improper_format() {
+        let branch_name: &str = "test_branch_name";
+        let path = write_head_file(&format!("refs/heads/{}\n", branch_name));
+
+        let result = get_head_ref(None);
+        assert!(result.is_err());
+
+        cleanup(path);
+    }
 
     // #[test]
     // fn test_read_from_file_success() {

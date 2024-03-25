@@ -17,7 +17,7 @@ pub struct ListBranchOptions {
 
 pub struct DeleteBranchResults {
     path: PathBuf,
-    sha: String,
+    hash: String,
 }
 
 pub fn branch_command(args: &[String]) -> Result<(), anyhow::Error> {
@@ -29,7 +29,7 @@ pub fn branch_command(args: &[String]) -> Result<(), anyhow::Error> {
         }
         BranchConfig::Delete(branch_name) => {
             let results = delete_branch(branch_name)?;
-            println!("Deleted branch {:?} (was {})", results.path, results.sha);
+            println!("Deleted branch {:?} (was {})", results.path, results.hash);
             Ok(())
         }
         BranchConfig::Create(branch_name) => create_branch(branch_name),
@@ -37,7 +37,7 @@ pub fn branch_command(args: &[String]) -> Result<(), anyhow::Error> {
 }
 
 fn delete_branch(branch_name: String) -> Result<DeleteBranchResults, anyhow::Error> {
-    let head_ref = get_head_ref()?;
+    let head_ref = get_head_ref(None)?;
     if branch_name == head_ref {
         return Err(anyhow::anyhow!(
             "Cannot delete the branch you are currently on"
@@ -58,7 +58,7 @@ fn delete_branch(branch_name: String) -> Result<DeleteBranchResults, anyhow::Err
 
     Ok(DeleteBranchResults {
         path: path.iter().skip(3).collect(),
-        sha: contents.full_hash(),
+        hash: contents.full_hash(),
     })
 }
 
@@ -69,7 +69,7 @@ fn create_branch(branch_name: String) -> Result<(), anyhow::Error> {
         return Err(anyhow::anyhow!("Branch {} already exists", branch_name));
     }
 
-    let head_ref = get_head_ref()?;
+    let head_ref = get_head_ref(None)?;
     let head_path: PathBuf = ["not-git", "refs", "heads", &head_ref].iter().collect();
 
     if !head_path.exists() {
@@ -108,7 +108,7 @@ pub fn list_branches(_list_all_branches: bool) -> Result<ListBranchOptions, anyh
 
     // TODO: List all branches if -a tag - decode packed-refs
 
-    let head_ref = get_head_ref()?;
+    let head_ref = get_head_ref(None)?;
 
     let branch_options = ListBranchOptions { branches, head_ref };
     Ok(branch_options)

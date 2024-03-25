@@ -31,7 +31,7 @@ pub fn commit_command(args: &[String]) -> Result<(), anyhow::Error> {
 }
 
 pub fn commit(config: CommitConfig) -> Result<(), anyhow::Error> {
-    let head_ref: String = get_head_ref()?;
+    let head_ref: String = get_head_ref(None)?;
     let head_hash = get_parent_hash(&head_ref)?;
     let parent_hash = match head_hash {
         Some(hash) => get_parent_commit(hash)?,
