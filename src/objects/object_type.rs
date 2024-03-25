@@ -118,7 +118,7 @@ mod tests {
         assert_eq!(ObjectType::Executable.to_mode(), "100755");
         assert_eq!(ObjectType::Symlink.to_mode(), "120000");
         assert_eq!(ObjectType::Commit.to_mode(), "160000");
-        assert_eq!(ObjectType::Tag.to_mode(), "");
+        assert_eq!(ObjectType::Tag.to_mode(), "100644");
     }
 
     #[test]
@@ -148,8 +148,5 @@ mod tests {
         assert!(ObjectType::from_str("invalid_type").is_err());
     }
 
-    #[test]
-    fn test_from_entry() {
-        // TODO
-    }
+    // `from_entry`` handled in integration tests (tests/object_type) because of need for setup/cleanup
 }
