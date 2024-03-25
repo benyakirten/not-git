@@ -85,22 +85,20 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<PackfileObject>), anyho
 
     // TODO: Write all files to a temporary directory
     // If successful, move all files and folders over to .git and delete temporary directory
-
     // Header will contain the following:
     // 1. 0008NAK\n - because we have ended negotiation
     // 2. 4-byte signature which can be stringified to PACK
     // 3. 4-byte version number - always 2 or 3
     // 4. 4-byte number of objects
 
-    let init_config = init::InitConfig::new(head_ref.branch.to_string(), None);
-    init::create_directories(init_config)?;
-
     // The whole ref name is ref/heads/{branch_name} - we want the last part
-    let head_path = head_ref
-        .branch
-        .split('/')
-        .last()
-        .ok_or_else(|| anyhow::anyhow!("Unable to parse head branch name"))?;
+    let head_path = match head_ref.branch.split_once("refs/heads/") {
+        Some((_, branch)) => branch,
+        None => head_ref.branch.as_str(),
+    };
+
+    let init_config = init::InitConfig::new(head_path, None);
+    init::create_directories(init_config)?;
 
     let objects = download_commit(&client, &config.url, &head_ref.commit_hash)?;
 

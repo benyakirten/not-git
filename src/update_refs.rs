@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use crate::objects::{ObjectFile, ObjectHash, ObjectType};
 
+#[derive(Debug)]
 pub struct UpdateRefsConfig {
     commit_hash: ObjectHash,
     path: PathBuf,

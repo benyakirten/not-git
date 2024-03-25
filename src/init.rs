@@ -1,12 +1,12 @@
 use std::{fs, path::PathBuf};
 
 pub struct InitConfig<'a> {
-    commit_name: String,
+    commit_name: &'a str,
     directory: Option<&'a str>,
 }
 
 impl<'a> InitConfig<'a> {
-    pub fn new(commit_name: String, directory: Option<&'a str>) -> Self {
+    pub fn new(commit_name: &'a str, directory: Option<&'a str>) -> Self {
         InitConfig {
             commit_name,
             directory,
@@ -21,14 +21,14 @@ pub fn create_directories(config: InitConfig) -> Result<(), anyhow::Error> {
         None => PathBuf::from("not-git"),
     };
 
-    fs::create_dir_all(base_path.join("not-git/objects"))?;
-    fs::create_dir_all(base_path.join("not-git/refs/heads"))?;
+    fs::create_dir_all(base_path.join("objects"))?;
+    fs::create_dir_all(base_path.join("refs/heads"))?;
     fs::write(
-        base_path.join("not-git/HEAD"),
+        base_path.join("HEAD"),
         format!("ref: refs/heads/{}\n", config.commit_name),
     )?;
     fs::write(
-        base_path.join("not-git/packed-refs"),
+        base_path.join("packed-refs"),
         "# pack-refs with: peeled fully-peeled sorted\n",
     )?;
 

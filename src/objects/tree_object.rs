@@ -17,11 +17,11 @@ impl TreeObject {
         let mut tree_files = vec![];
 
         loop {
-            let tree_file = read_next_tree_file(&mut cursor)?;
-            if tree_file.is_none() {
-                break;
-            }
-            let tree_file = tree_file.unwrap();
+            let tree_file = match read_next_tree_file(&mut cursor)? {
+                None => break,
+                Some(tree_file) => tree_file,
+            };
+
             tree_files.push(tree_file);
         }
 
@@ -43,6 +43,10 @@ fn read_next_tree_file(cursor: &mut Cursor<&[u8]>) -> Result<Option<TreeObject>,
         Err(e) if e.kind() == ErrorKind::UnexpectedEof => return Ok(None),
         Err(e) => return Err(e.into()),
         _ => {}
+    };
+
+    if mode_file_name.is_empty() {
+        return Ok(None);
     }
 
     let readable_mode_file_name = String::from_utf8(mode_file_name)?;

@@ -19,7 +19,6 @@ impl CheckoutConfig {
 
 pub fn checkout_branch(config: &CheckoutConfig) -> Result<usize, anyhow::Error> {
     let initial_tree = get_initial_tree(config)?;
-
     create_tree(initial_tree, vec!["copy_folder"])
 }
 
