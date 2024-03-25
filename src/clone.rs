@@ -104,13 +104,15 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<PackfileObject>), anyho
 
     let objects = download_commit(&client, &config.url, &head_ref.commit_hash)?;
 
+    // Update HEAD ref
+    // Requires the commit to already be written to a file.
     let commit_hash = ObjectHash::new(&head_ref.commit_hash.full_hash())?;
     let path = PathBuf::from(head_path);
     let update_ref_config = update_refs::UpdateRefsConfig::new(commit_hash, path);
     update_refs::update_refs(update_ref_config)?;
 
     let checkout_config = checkout::CheckoutConfig::new(get_branch_name(&head_ref.branch));
-    checkout::checkout_branch(&checkout_config, config.path)?;
+    checkout::checkout_branch(&checkout_config)?;
     Ok((head_ref, objects))
 }
 

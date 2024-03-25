@@ -17,21 +17,10 @@ impl CheckoutConfig {
     }
 }
 
-pub fn checkout_branch(
-    config: &CheckoutConfig,
-    initial_folder: Option<&str>,
-) -> Result<usize, anyhow::Error> {
+pub fn checkout_branch(config: &CheckoutConfig) -> Result<usize, anyhow::Error> {
     let initial_tree = get_initial_tree(config)?;
 
-    let starting_path = match initial_folder {
-        Some(folder) => {
-            let path: PathBuf = [folder].iter().collect();
-            fs::create_dir(path)?;
-            vec![folder]
-        }
-        None => vec![],
-    };
-    create_tree(initial_tree, starting_path)
+    create_tree(initial_tree, vec!["copy_folder"])
 }
 
 fn create_tree(
