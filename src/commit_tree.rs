@@ -1,6 +1,9 @@
 use std::io::Write;
 
-use crate::{file_hash::ObjectHash, hash_object, ls_tree::FileType};
+use crate::{
+    hash_object,
+    objects::{ObjectHash, ObjectType},
+};
 
 pub struct CommitTreeConfig {
     pub tree_hash: ObjectHash,
@@ -19,7 +22,7 @@ pub fn commit_tree_command(args: &[String]) -> Result<(), anyhow::Error> {
 
 pub fn commit_tree(config: CommitTreeConfig) -> Result<ObjectHash, anyhow::Error> {
     let mut contents = create_file_contents(config)?;
-    let hash = hash_object::hash_and_write_object(&FileType::Commit, &mut contents)?;
+    let hash = hash_object::hash_and_write_object(&ObjectType::Commit, &mut contents)?;
 
     Ok(hash)
 }

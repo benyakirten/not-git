@@ -1,13 +1,6 @@
 use std::{fs, path::PathBuf};
 
-use crate::{
-    cat_file::{self, CatFileConfig},
-    commit_tree::{self, CommitTreeConfig},
-    file_hash::ObjectHash,
-    update_refs::{self, UpdateRefsConfig},
-    utils::get_head_ref,
-    write_tree,
-};
+use crate::{utils::get_head_ref, write_tree};
 
 pub struct CommitConfig {
     pub message: String,
