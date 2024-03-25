@@ -68,6 +68,7 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<PackfileObject>), anyho
     // We could use async functions or we could run this as single-threaded with blocking calls
     // We will use blocking calls for simplicity/ease of use. I don't think there's a part that
     // would benefit from async calls yet.
+
     let client = Client::new();
     let mut refs = discover_references(
         &client,
@@ -101,16 +102,15 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<PackfileObject>), anyho
         .last()
         .ok_or_else(|| anyhow::anyhow!("Unable to parse head branch name"))?;
 
+    let objects = download_commit(&client, &config.url, &head_ref.commit_hash)?;
+
     let commit_hash = ObjectHash::new(&head_ref.commit_hash.full_hash())?;
     let path = PathBuf::from(head_path);
     let update_ref_config = update_refs::UpdateRefsConfig::new(commit_hash, path);
     update_refs::update_refs(update_ref_config)?;
 
-    let objects = download_commit(&client, &config.url, &head_ref.commit_hash)?;
-
     let checkout_config = checkout::CheckoutConfig::new(get_branch_name(&head_ref.branch));
     checkout::checkout_branch(&checkout_config, config.path)?;
-
     Ok((head_ref, objects))
 }
 
