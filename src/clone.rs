@@ -1,7 +1,8 @@
-use std::fs;
 use std::io::Cursor;
 use std::path::PathBuf;
+use std::{env, fs};
 
+use anyhow::Context;
 use bytes::Bytes;
 
 use reqwest::blocking::Client;
@@ -63,18 +64,23 @@ pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
 pub fn perform_clone(
     config: CloneConfig,
 ) -> Result<(GitRef, Vec<packfile::PackfileObject>), anyhow::Error> {
+    prep_temp_dir()?;
+
     let dest_dir = match config.path {
         Some(path) => PathBuf::from(path),
         None => PathBuf::from("clone_folder"),
     };
 
-    let (head_ref, objects) = match clone(config) {
+    let clone_result = clone(config);
+    env::set_current_dir("..")?;
+
+    let (head_ref, objects) = match clone_result {
         Ok((head_ref, objects)) => {
-            std::env::set_current_dir("..")?;
             fs::rename(TEMP_DIR, dest_dir)?;
             (head_ref, objects)
         }
         Err(e) => {
+            println!("HERE AT {:?}!", env::current_dir());
             fs::remove_dir_all(".tmp")?;
             return Err(e);
         }
@@ -90,6 +96,18 @@ fn get_branch_name(branch: &str) -> String {
     }
 }
 
+fn prep_temp_dir() -> Result<(), anyhow::Error> {
+    if PathBuf::from(TEMP_DIR).exists() {
+        fs::remove_dir_all(TEMP_DIR)
+            .context(format!("Deleting pre-exsting {} directory", TEMP_DIR))?;
+    }
+
+    fs::create_dir(TEMP_DIR).context(format!("Creating {} directory", TEMP_DIR))?;
+    env::set_current_dir(TEMP_DIR).context(format!("Setting {} as working directory", TEMP_DIR))?;
+
+    Ok(())
+}
+
 pub fn clone(
     config: CloneConfig,
 ) -> Result<(GitRef, Vec<packfile::PackfileObject>), anyhow::Error> {
@@ -97,8 +115,6 @@ pub fn clone(
     // We could use async functions or we could run this as single-threaded with blocking calls
     // We will use blocking calls for simplicity/ease of use. I don't think there's a part that
     // would benefit from async calls yet.
-    std::fs::create_dir(TEMP_DIR)?;
-    std::env::set_current_dir(TEMP_DIR)?;
 
     let client = Client::new();
     let mut refs = discover_references(
