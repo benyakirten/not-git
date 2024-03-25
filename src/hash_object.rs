@@ -45,7 +45,7 @@ fn write_encoded_object(hash: &ObjectHash, encoded_contents: Vec<u8>) -> Result<
         .parent()
         .ok_or_else(|| anyhow::anyhow!("Invalid path"))?;
     if !parent.exists() {
-        fs::create_dir_all(&parent)?;
+        fs::create_dir_all(parent)?;
     }
 
     fs::write(path, encoded_contents)?;

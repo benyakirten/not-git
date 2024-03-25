@@ -45,7 +45,8 @@ fn read_next_tree_file(cursor: &mut Cursor<&[u8]>) -> Result<Option<TreeObject>,
         _ => {}
     }
 
-    let (mode, file_name) = String::from_utf8(mode_file_name)?
+    let readable_mode_file_name = String::from_utf8(mode_file_name)?;
+    let (mode, file_name) = readable_mode_file_name
         .split_once(' ')
         .ok_or_else(|| anyhow::anyhow!("Invalid tree object: Unable to find mode and file name"))?;
 

@@ -85,7 +85,7 @@ fn get_parent_hash(head_ref: &str) -> Result<Option<ObjectHash>, anyhow::Error> 
 fn get_parent_commit(object_hash: ObjectHash) -> Result<Option<ObjectHash>, anyhow::Error> {
     let commit = ObjectFile::new(&object_hash)?;
     let commit_content = match commit {
-        ObjectFile::Tree(object_contents) => Err(anyhow::anyhow!("Expected commit object")),
+        ObjectFile::Tree(_) => Err(anyhow::anyhow!("Expected commit object")),
         ObjectFile::Other(object_contents) => match object_contents.object_type {
             ObjectType::Commit => String::from_utf8(object_contents.contents)
                 .context("Parsing commit content to string"),

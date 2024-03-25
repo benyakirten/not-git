@@ -26,7 +26,7 @@ pub fn checkout_branch(
     let starting_path = match initial_folder {
         Some(folder) => {
             let path: PathBuf = [folder].iter().collect();
-            fs::create_dir(&path)?;
+            fs::create_dir(path)?;
             vec![folder]
         }
         None => vec![],
@@ -86,9 +86,7 @@ fn get_initial_tree(config: &CheckoutConfig) -> Result<Vec<TreeObject>, anyhow::
                 .context("Parsing commit object contents as utf8"),
             _ => return Err(anyhow::anyhow!("Expected commit object")),
         },
-        ObjectFile::Tree(tree) => {
-            return Err(anyhow::anyhow!("Expected commit to be a tree object"))?
-        }
+        ObjectFile::Tree(_) => return Err(anyhow::anyhow!("Expected commit to be a tree object"))?,
     }?;
 
     let tree_hash = readable_contents
@@ -111,14 +109,4 @@ fn get_initial_tree(config: &CheckoutConfig) -> Result<Vec<TreeObject>, anyhow::
         ObjectFile::Tree(tree_object) => Ok(tree_object.contents),
         ObjectFile::Other(_) => Err(anyhow::anyhow!("Expected tree object")),
     }
-}
-
-fn parse_checkout_config(args: &[String]) -> Result<CheckoutConfig, anyhow::Error> {
-    if args.is_empty() {
-        return Err(anyhow::anyhow!("Usage: checkout <branch-name>"));
-    }
-
-    Ok(CheckoutConfig {
-        branch_name: args[0].clone(),
-    })
 }

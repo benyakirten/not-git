@@ -9,13 +9,13 @@ use crate::objects::{ObjectHash, ObjectType};
 use crate::packfile::{self, PackfileHeader, PackfileObject};
 use crate::{checkout, init, update_refs};
 
-pub struct CloneConfig {
+pub struct CloneConfig<'a> {
     pub url: String,
-    pub path: Option<String>,
+    pub path: Option<&'a str>,
 }
 
-impl CloneConfig {
-    pub fn new(url: String, path: Option<String>) -> Self {
+impl<'a> CloneConfig<'a> {
+    pub fn new(url: String, path: Option<&'a str>) -> Self {
         CloneConfig { url, path }
     }
 }
@@ -101,15 +101,15 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<PackfileObject>), anyho
         .last()
         .ok_or_else(|| anyhow::anyhow!("Unable to parse head branch name"))?;
 
-    let commit_hash = ObjectHash::new(&head_ref.commit_hash.full_hash());
-    let path = PathBuf::from(head_path)?;
+    let commit_hash = ObjectHash::new(&head_ref.commit_hash.full_hash())?;
+    let path = PathBuf::from(head_path);
     let update_ref_config = update_refs::UpdateRefsConfig::new(commit_hash, path);
     update_refs::update_refs(update_ref_config)?;
 
     let objects = download_commit(&client, &config.url, &head_ref.commit_hash)?;
 
     let checkout_config = checkout::CheckoutConfig::new(get_branch_name(&head_ref.branch));
-    checkout::checkout_branch(&checkout_config, &config.path)?;
+    checkout::checkout_branch(&checkout_config, config.path)?;
 
     Ok((head_ref, objects))
 }
@@ -130,31 +130,31 @@ pub fn download_commit(
         let object_type = packfile::read_type_and_length(&mut cursor)?;
 
         let ((data, file_hash, file_type), size) = match object_type {
-            packfile::PackfileObject::Commit(size) => (
+            packfile::PackfileObjectType::Commit(size) => (
                 packfile::decode_undeltified_data(ObjectType::Commit, &mut cursor)?,
                 size,
             ),
-            packfile::PackfileObject::Tree(size) => (
+            packfile::PackfileObjectType::Tree(size) => (
                 packfile::decode_undeltified_data(ObjectType::Tree, &mut cursor)?,
                 size,
             ),
-            packfile::PackfileObject::Blob(size) => (
+            packfile::PackfileObjectType::Blob(size) => (
                 packfile::decode_undeltified_data(ObjectType::Blob, &mut cursor)?,
                 size,
             ),
-            packfile::PackfileObject::Tag(size) => (
+            packfile::PackfileObjectType::Tag(size) => (
                 packfile::decode_undeltified_data(ObjectType::Tag, &mut cursor)?,
                 size,
             ),
-            packfile::PackfileObject::OfsDelta(size) => {
+            packfile::PackfileObjectType::OfsDelta(size) => {
                 (packfile::read_obj_offset_data(&objects, &mut cursor)?, size)
             }
-            packfile::PackfileObject::RefDelta(size) => {
+            packfile::PackfileObjectType::RefDelta(size) => {
                 (packfile::read_obj_ref_data(&objects, &mut cursor)?, size)
             }
         };
 
-        let object = ObjectEntry {
+        let object = PackfileObject {
             position,
             object_type,
             data,
@@ -299,7 +299,7 @@ fn discover_references(
         .next()
         .ok_or_else(|| anyhow::anyhow!("No HEAD line in packet"))?;
 
-    let head_ref = ObjectHash::from_sha(head_line[8..48].to_string())?;
+    let head_ref = ObjectHash::new(head_line[8..48].as_ref())?;
 
     let refs: Vec<GitRef> = lines
         .filter_map(|line| {
@@ -310,7 +310,7 @@ fn discover_references(
 
             let mode = mode_and_hash[0..4].to_string();
             let commit_hash = mode_and_hash[4..].to_string();
-            let commit_hash = match ObjectHash::from_sha(commit_hash) {
+            let commit_hash = match ObjectHash::new(&commit_hash) {
                 Ok(hash) => hash,
                 Err(_) => return None,
             };
@@ -336,7 +336,7 @@ fn parse_clone_config(args: &[String]) -> Result<CloneConfig, anyhow::Error> {
 
     let url = args[0].to_string();
     let path = if args.len() == 2 {
-        Some(args[1].to_string())
+        Some(args[1].as_ref())
     } else {
         None
     };
