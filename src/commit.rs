@@ -1,5 +1,7 @@
 use std::{fs, path::PathBuf};
 
+use anyhow::Context;
+
 use crate::{
     commit_tree,
     objects::{ObjectFile, ObjectHash, ObjectType},
@@ -47,7 +49,7 @@ pub fn commit(config: CommitConfig) -> Result<(), anyhow::Error> {
     let commit_hash = commit_tree::create_commit(commit_tree_config)?;
 
     let update_refs_config =
-        update_refs::UpdateRefsConfig::new(commit_hash, PathBuf::from(head_ref))?;
+        update_refs::UpdateRefsConfig::new(commit_hash, PathBuf::from(head_ref));
     update_refs::update_refs(update_refs_config)?;
 
     Ok(())
@@ -76,7 +78,7 @@ fn get_parent_hash(head_ref: &str) -> Result<Option<ObjectHash>, anyhow::Error> 
     }
 
     let current_commit_hash = fs::read_to_string(head_file_path)?;
-    let hash = current_commit_hash.trim().parse()?;
+    let hash = ObjectHash::new(current_commit_hash.trim())?;
     Ok(Some(hash))
 }
 
@@ -84,19 +86,18 @@ fn get_parent_commit(object_hash: ObjectHash) -> Result<Option<ObjectHash>, anyh
     let commit = ObjectFile::new(&object_hash)?;
     let commit_content = match commit {
         ObjectFile::Tree(object_contents) => Err(anyhow::anyhow!("Expected commit object")),
-        ObjectFile::Other(object_contents) => {
-            if object_contents.object_type != ObjectType::Commit {
+        ObjectFile::Other(object_contents) => match object_contents.object_type {
+            ObjectType::Commit => String::from_utf8(object_contents.contents)
+                .context("Parsing commit content to string"),
+            _ => {
                 return Err(anyhow::anyhow!("Expected commit object"));
             }
-            String::from_utf8(object_contents.contents)
-                .context("Parsing commit content to string")?
-        }
-    };
+        },
+    }?;
 
     for line in commit_content.lines() {
-        if let Some(hash_parts) = line.split_once("parent ") {
-            let hash = hash_parts.1;
-            let hash = hash.parse();
+        if let Some((_, hash)) = line.split_once("parent ") {
+            let hash = ObjectHash::new(hash)?;
             return Ok(Some(hash));
         }
     }

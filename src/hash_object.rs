@@ -40,8 +40,12 @@ pub fn hash_and_write_object(
 
 fn write_encoded_object(hash: &ObjectHash, encoded_contents: Vec<u8>) -> Result<(), anyhow::Error> {
     let path: PathBuf = hash.path();
-    if !path.parent().exists() {
-        fs::create_dir(&path.parent())?;
+
+    let parent = path
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("Invalid path"))?;
+    if !parent.exists() {
+        fs::create_dir_all(&parent)?;
     }
 
     fs::write(path, encoded_contents)?;
@@ -59,7 +63,8 @@ fn hash_file(file: &Vec<u8>) -> Result<ObjectHash, anyhow::Error> {
         ));
     }
 
-    Ok(ObjectHash::new(&result))
+    let hash = ObjectHash::new(&result)?;
+    Ok(hash)
 }
 
 fn encode_file_contents(file_contents: Vec<u8>) -> Result<Vec<u8>, anyhow::Error> {

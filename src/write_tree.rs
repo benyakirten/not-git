@@ -93,7 +93,7 @@ fn hash_tree(tree_files: &mut Vec<TreeFile>) -> Result<String, anyhow::Error> {
 
     let mut tree_content = Vec::new();
     for tree_file in tree_files {
-        let file_type = tree_file.file_type.to_number_string();
+        let file_type = tree_file.object_type.to_mode();
         let file_name = &tree_file.file_name;
         let sha = &tree_file.sha;
 

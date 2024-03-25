@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{os::unix::fs::PermissionsExt, str::FromStr};
 
 /// A representation of the type of git object. It contains the possible types of objects that
 /// git will use. The enum also contains relevant methods that will be used, such
@@ -54,6 +54,10 @@ impl ObjectType {
         } else {
             Err(anyhow::anyhow!("Unable to determine file type"))
         }
+    }
+
+    pub fn as_str(&self) -> &str {
+        self.into()
     }
 }
 

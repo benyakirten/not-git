@@ -44,11 +44,11 @@ fn create_tree(
         let object: ObjectFile = ObjectFile::new(&tree_object.hash)?;
 
         match object {
-            ObjectFile::Tree(tree_object) => {
+            ObjectFile::Tree(object_contents) => {
                 let mut new_path = path_until_now.clone();
                 new_path.push(&tree_object.file_name);
 
-                num_files_written += create_tree(tree_object.contents, new_path)?;
+                num_files_written += create_tree(object_contents.contents, new_path)?;
             }
             ObjectFile::Other(object_contents) => {
                 let file_path = path_until_now
@@ -81,20 +81,15 @@ fn get_initial_tree(config: &CheckoutConfig) -> Result<Vec<TreeObject>, anyhow::
     ))?;
 
     let readable_contents = match object_file {
-        ObjectFile::Other(object_contents) => {
-            if object_contents.object_type != ObjectType::Commit {
-                return Err(anyhow::anyhow!("Expected commit object"));
-            }
-
-            let contents = String::from_utf8(object_contents.contents)
-                .context("Parsing commit object contents as utf8")?;
-
-            contents
-        }
+        ObjectFile::Other(object_contents) => match object_contents.object_type {
+            ObjectType::Commit => String::from_utf8(object_contents.contents)
+                .context("Parsing commit object contents as utf8"),
+            _ => return Err(anyhow::anyhow!("Expected commit object")),
+        },
         ObjectFile::Tree(tree) => {
             return Err(anyhow::anyhow!("Expected commit to be a tree object"))?
         }
-    };
+    }?;
 
     let tree_hash = readable_contents
         .lines()
@@ -108,6 +103,7 @@ fn get_initial_tree(config: &CheckoutConfig) -> Result<Vec<TreeObject>, anyhow::
         .split_ascii_whitespace()
         .last()
         .ok_or_else(|| anyhow::anyhow!("No tree hash found in commit"))?;
+
     let tree_hash = ObjectHash::new(tree_hash)?;
 
     let tree_object = ObjectFile::new(&tree_hash).context("Unable to find tree object")?;

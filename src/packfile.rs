@@ -21,7 +21,7 @@ const MAX_OFFSET_BYTES: usize = 4;
 const MAX_SIZE_BYTES: usize = 3;
 
 #[derive(Debug)]
-pub struct PackFileHeader {
+pub struct PackfileHeader {
     pub signature: String,
     pub version_number: u32,
     pub num_objects: u32,
@@ -55,7 +55,7 @@ pub struct InsertInstruction {
     pub size: u8,
 }
 
-impl PackFileHeader {
+impl PackfileHeader {
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, anyhow::Error> {
         let head = String::from_utf8(bytes[0..8].to_vec())?;
 
@@ -75,7 +75,7 @@ impl PackFileHeader {
             return Err(anyhow::anyhow!("Invalid packfile version number"));
         }
 
-        Ok(PackFileHeader {
+        Ok(PackfileHeader {
             signature,
             version_number,
             num_objects,

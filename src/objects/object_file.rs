@@ -1,4 +1,6 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, str::FromStr};
+
+use anyhow::Context;
 
 use crate::utils::{decode_file, split_header_from_contents};
 

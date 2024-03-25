@@ -80,7 +80,7 @@ fn get_tree_hash(args: &[String]) -> Result<ObjectHash, anyhow::Error> {
         args[0].to_string()
     };
 
-    let tree_hash = ObjectHash::from_sha(tree_hash)?;
+    let tree_hash = ObjectHash::new(&tree_hash)?;
     Ok(tree_hash)
 }
 
@@ -88,7 +88,7 @@ fn get_parent_hash(args: &[String]) -> Result<Option<ObjectHash>, anyhow::Error>
     let parent_hash = get_flag_arg_optional("-p", args)?;
     match parent_hash {
         Some(hash) => {
-            let hash = ObjectHash::from_sha(hash)?;
+            let hash = ObjectHash::new(&hash)?;
             Ok(Some(hash))
         }
         None => Ok(None),

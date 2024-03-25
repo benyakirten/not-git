@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use hex::ToHex;
+
 #[derive(Debug)]
 pub struct ObjectHash {
     prefix: String,

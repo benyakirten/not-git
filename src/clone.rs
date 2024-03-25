@@ -5,28 +5,40 @@ use bytes::Bytes;
 use reqwest::blocking::Client;
 use reqwest::header::CONTENT_TYPE;
 
-use crate::{
-    checkout::{self, CheckoutConfig},
-    file_hash::ObjectHash,
-    init,
-    ls_tree::FileType,
-    packfile::{self, ObjectEntry, PackFileHeader},
-    update_refs,
-};
+use crate::objects::{ObjectHash, ObjectType};
+use crate::packfile::{self, PackfileHeader, PackfileObject};
+use crate::{checkout, init, update_refs};
 
 pub struct CloneConfig {
     pub url: String,
-    pub path: PathBuf,
+    pub path: Option<String>,
+}
+
+impl CloneConfig {
+    pub fn new(url: String, path: Option<String>) -> Self {
+        CloneConfig { url, path }
+    }
 }
 
 #[derive(Debug)]
 pub struct GitRef {
     #[allow(dead_code)]
-    pub mode: String,
+    mode: String,
     pub commit_hash: ObjectHash,
     #[allow(dead_code)]
     pub branch: String,
-    pub is_head: bool,
+    is_head: bool,
+}
+
+impl GitRef {
+    pub fn new(mode: String, commit_hash: ObjectHash, branch: String, is_head: bool) -> Self {
+        GitRef {
+            mode,
+            commit_hash,
+            branch,
+            is_head,
+        }
+    }
 }
 
 pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
@@ -45,14 +57,13 @@ pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
 }
 
 fn get_branch_name(branch: &str) -> String {
-    if branch.starts_with("refs/heads/") {
-        branch.split_once("refs/heads/").unwrap().1.to_string()
-    } else {
-        branch.to_string()
+    match branch.split_once("refs/heads/") {
+        Some((_, branch)) => branch.to_string(),
+        None => branch.to_string(),
     }
 }
 
-pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<ObjectEntry>), anyhow::Error> {
+pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<PackfileObject>), anyhow::Error> {
     // https://www.git-scm.com/docs/http-protocol
     // We could use async functions or we could run this as single-threaded with blocking calls
     // We will use blocking calls for simplicity/ease of use. I don't think there's a part that
@@ -80,9 +91,7 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<ObjectEntry>), anyhow::
     // 3. 4-byte version number - always 2 or 3
     // 4. 4-byte number of objects
 
-    let init_config = init::InitConfig {
-        commit_name: head_ref.branch.to_string(),
-    };
+    let init_config = init::InitConfig::new(head_ref.branch.to_string(), None);
     init::create_directories(init_config)?;
 
     // The whole ref name is ref/heads/{branch_name} - we want the last part
@@ -92,19 +101,15 @@ pub fn clone(config: CloneConfig) -> Result<(GitRef, Vec<ObjectEntry>), anyhow::
         .last()
         .ok_or_else(|| anyhow::anyhow!("Unable to parse head branch name"))?;
 
-    let update_ref_config = update_refs::UpdateRefsConfig {
-        commit_hash: ObjectHash::from_sha(head_ref.commit_hash.full_hash())?,
-        path: PathBuf::from(head_path),
-    };
-
+    let commit_hash = ObjectHash::new(&head_ref.commit_hash.full_hash());
+    let path = PathBuf::from(head_path)?;
+    let update_ref_config = update_refs::UpdateRefsConfig::new(commit_hash, path);
     update_refs::update_refs(update_ref_config)?;
 
     let objects = download_commit(&client, &config.url, &head_ref.commit_hash)?;
-    let checkout_config = CheckoutConfig {
-        branch_name: get_branch_name(&head_ref.branch),
-    };
 
-    checkout::checkout_branch(&checkout_config)?;
+    let checkout_config = checkout::CheckoutConfig::new(get_branch_name(&head_ref.branch));
+    checkout::checkout_branch(&checkout_config, &config.path)?;
 
     Ok((head_ref, objects))
 }
@@ -113,11 +118,11 @@ pub fn download_commit(
     client: &Client,
     url: &str,
     hash: &ObjectHash,
-) -> Result<Vec<ObjectEntry>, anyhow::Error> {
+) -> Result<Vec<packfile::PackfileObject>, anyhow::Error> {
     let commit = get_commit(client, url, hash)?;
-    let header = PackFileHeader::from_bytes(commit[..20].to_vec())?;
+    let header = PackfileHeader::from_bytes(commit[..20].to_vec())?;
 
-    let mut objects: Vec<ObjectEntry> = vec![];
+    let mut objects: Vec<packfile::PackfileObject> = vec![];
     let mut cursor = Cursor::new(&commit[20..]);
 
     for _ in 0..header.num_objects {
@@ -125,26 +130,26 @@ pub fn download_commit(
         let object_type = packfile::read_type_and_length(&mut cursor)?;
 
         let ((data, file_hash, file_type), size) = match object_type {
-            packfile::ObjectType::Commit(size) => (
-                packfile::decode_undeltified_data(FileType::Commit, &mut cursor)?,
+            packfile::PackfileObject::Commit(size) => (
+                packfile::decode_undeltified_data(ObjectType::Commit, &mut cursor)?,
                 size,
             ),
-            packfile::ObjectType::Tree(size) => (
-                packfile::decode_undeltified_data(FileType::Tree, &mut cursor)?,
+            packfile::PackfileObject::Tree(size) => (
+                packfile::decode_undeltified_data(ObjectType::Tree, &mut cursor)?,
                 size,
             ),
-            packfile::ObjectType::Blob(size) => (
-                packfile::decode_undeltified_data(FileType::Blob, &mut cursor)?,
+            packfile::PackfileObject::Blob(size) => (
+                packfile::decode_undeltified_data(ObjectType::Blob, &mut cursor)?,
                 size,
             ),
-            packfile::ObjectType::Tag(size) => (
-                packfile::decode_undeltified_data(FileType::Tag, &mut cursor)?,
+            packfile::PackfileObject::Tag(size) => (
+                packfile::decode_undeltified_data(ObjectType::Tag, &mut cursor)?,
                 size,
             ),
-            packfile::ObjectType::OfsDelta(size) => {
+            packfile::PackfileObject::OfsDelta(size) => {
                 (packfile::read_obj_offset_data(&objects, &mut cursor)?, size)
             }
-            packfile::ObjectType::RefDelta(size) => {
+            packfile::PackfileObject::RefDelta(size) => {
                 (packfile::read_obj_ref_data(&objects, &mut cursor)?, size)
             }
         };
@@ -331,10 +336,11 @@ fn parse_clone_config(args: &[String]) -> Result<CloneConfig, anyhow::Error> {
 
     let url = args[0].to_string();
     let path = if args.len() == 2 {
-        PathBuf::from(&args[1])
+        Some(args[1].to_string())
     } else {
-        PathBuf::from(".")
+        None
     };
 
-    Ok(CloneConfig { url, path })
+    let config = CloneConfig::new(url, path);
+    Ok(config)
 }

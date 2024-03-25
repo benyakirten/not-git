@@ -1,4 +1,4 @@
-use std::io::{Cursor, ErrorKind};
+use std::io::{BufRead, Cursor, ErrorKind, Read};
 
 use super::{ObjectHash, ObjectType};
 
@@ -12,7 +12,7 @@ pub struct TreeObject {
 impl TreeObject {
     /// Parse a tree object from an object that has already been decoded from zlib.
     /// It shoudl already have the header removed.
-    pub fn from_object(body: [u8]) -> Result<Vec<Self>, anyhow::Error> {
+    pub fn from_object(body: &[u8]) -> Result<Vec<Self>, anyhow::Error> {
         let mut cursor = Cursor::new(body);
         let mut tree_files = vec![];
 
@@ -53,7 +53,7 @@ fn read_next_tree_file(cursor: &mut Cursor<&[u8]>) -> Result<Option<TreeObject>,
 
     let mut hash_bytes = vec![0; 20];
     cursor.read_exact(&mut hash_bytes)?;
-    let hash = ObjectHash::from_bytes(hash_bytes)?;
+    let hash = ObjectHash::from_bytes(hash_bytes.as_slice())?;
 
     let object_type = ObjectType::from_mode(mode)?;
 
