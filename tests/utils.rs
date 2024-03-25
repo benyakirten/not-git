@@ -1,5 +1,9 @@
 use std::fs;
+use std::io::Write;
 use std::path::PathBuf;
+
+use flate2::write::ZlibEncoder;
+use flate2::Compression;
 
 use not_git::objects::ObjectType;
 use not_git::utils::{create_header, get_head_ref, split_header_from_contents};
@@ -82,6 +86,49 @@ fn test_get_head_ref_error_improper_format() {
 
     let result = get_head_ref(None);
     assert!(result.is_err());
+
+    common::cleanup(path);
+}
+
+#[test]
+fn test_decode_file_success() {
+    let path = common::setup();
+    let file_path = path.join("test_file");
+
+    let contents = b"these are the file contents".to_vec();
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    encoder.write_all(&contents).unwrap();
+    let encoded_contents = encoder.finish().unwrap();
+
+    fs::write(&file_path, encoded_contents).unwrap();
+
+    let decoded = not_git::utils::decode_file(file_path).unwrap();
+    assert_eq!(decoded, contents);
+
+    common::cleanup(path);
+}
+
+#[test]
+fn test_decode_file_error_no_file() {
+    let path = common::setup();
+    let file_path = path.join("test_file");
+
+    let decoded = not_git::utils::decode_file(file_path);
+    assert!(decoded.is_err());
+
+    common::cleanup(path);
+}
+
+#[test]
+fn test_decode_file_error_not_encoded() {
+    let path = common::setup();
+    let file_path = path.join("test_file");
+
+    let contents = b"these are the file contents".to_vec();
+    fs::write(&file_path, contents).unwrap();
+
+    let decoded = not_git::utils::decode_file(file_path);
+    assert!(decoded.is_err());
 
     common::cleanup(path);
 }
