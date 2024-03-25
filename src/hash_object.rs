@@ -5,8 +5,7 @@ use hex::ToHex;
 use sha1::{Digest, Sha1};
 
 use crate::{
-    file_hash::ObjectHash,
-    ls_tree::FileType,
+    objects::{ObjectHash, ObjectType},
     utils::{create_header, read_from_file},
 };
 
@@ -18,14 +17,14 @@ pub fn hash_object_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_config(args)?;
     let mut file_contents = read_from_file(config.file.as_str())?;
 
-    let hash = hash_and_write_object(&FileType::Blob, &mut file_contents)?;
+    let hash = hash_and_write_object(&ObjectType::Blob, &mut file_contents)?;
     print!("{}", &hash.full_hash());
 
     Ok(())
 }
 
 pub fn hash_and_write_object(
-    file_type: &FileType,
+    file_type: &ObjectType,
     file_contents: &mut Vec<u8>,
 ) -> Result<ObjectHash, anyhow::Error> {
     let mut header = create_header(file_type, file_contents);
@@ -40,12 +39,12 @@ pub fn hash_and_write_object(
 }
 
 fn write_encoded_object(hash: &ObjectHash, encoded_contents: Vec<u8>) -> Result<(), anyhow::Error> {
-    let path: PathBuf = ["not-git", "objects", &hash.prefix].iter().collect();
-    if !path.exists() {
-        fs::create_dir(&path)?;
+    let path: PathBuf = hash.path();
+    if !path.parent().exists() {
+        fs::create_dir(&path.parent())?;
     }
 
-    fs::write(path.join(&hash.hash), encoded_contents)?;
+    fs::write(path, encoded_contents)?;
     Ok(())
 }
 
@@ -60,10 +59,7 @@ fn hash_file(file: &Vec<u8>) -> Result<ObjectHash, anyhow::Error> {
         ));
     }
 
-    Ok(ObjectHash::new(
-        result[..2].to_string(),
-        result[2..].to_string(),
-    ))
+    Ok(ObjectHash::new(&result))
 }
 
 fn encode_file_contents(file_contents: Vec<u8>) -> Result<Vec<u8>, anyhow::Error> {
