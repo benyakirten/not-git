@@ -1,24 +1,15 @@
 use std::fs;
 use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use anyhow::Context;
 use flate2::read::ZlibDecoder;
 
 use crate::objects::ObjectType;
 
-/// Utiltiy function for reading the contents of a file.
-pub fn read_from_file<P: AsRef<Path>>(path: P) -> Result<Vec<u8>, anyhow::Error> {
-    let mut file = fs::File::open(path)?;
-    let mut content = vec![];
-    file.read_to_end(&mut content)?;
-
-    Ok(content)
-}
-
 /// Utility function for decoding a file that has been encoded with zlib.
 pub fn decode_file(path: PathBuf) -> Result<Vec<u8>, anyhow::Error> {
-    let encoded_content = read_from_file(path)?;
+    let encoded_content = fs::read(path)?;
 
     let mut decoder = ZlibDecoder::new(encoded_content.as_slice());
 
@@ -33,16 +24,32 @@ pub fn create_header(object_type: &ObjectType, file: &[u8]) -> Vec<u8> {
     header.as_bytes().to_vec()
 }
 
-pub fn get_head_ref() -> Result<String, anyhow::Error> {
-    let head = ["not-git", "HEAD"].iter().collect::<PathBuf>();
+pub fn get_head_ref(base_path: Option<&PathBuf>) -> Result<String, anyhow::Error> {
+    let head = match base_path {
+        Some(path) => PathBuf::from(path),
+        None => std::env::current_dir()?,
+    };
+    let head = head
+        .join("not-git")
+        .join("HEAD")
+        .iter()
+        .collect::<PathBuf>();
+
     let head = fs::read_to_string(head)?;
+
+    if !head.starts_with("ref: ") {
+        return Err(anyhow::anyhow!(format!(
+            "Invalid HEAD file. Expected ref: refs/heads/<branch_name>, got {}",
+            head
+        )));
+    }
 
     let head_ref = head
         .split("refs/heads/")
         .last()
         .ok_or_else(|| {
             anyhow::anyhow!(format!(
-                "Invalid HEAD file. Expected ref: refs/heads<branch_name>, got {}",
+                "Invalid HEAD file. Expected ref: refs/heads/<branch_name>, got {}",
                 head
             ))
         })?

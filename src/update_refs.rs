@@ -4,32 +4,39 @@ use std::path::PathBuf;
 use crate::objects::{ObjectFile, ObjectHash, ObjectType};
 
 #[derive(Debug)]
-pub struct UpdateRefsConfig {
-    commit_hash: ObjectHash,
-    path: PathBuf,
+pub struct UpdateRefsConfig<'a> {
+    commit_hash: &'a ObjectHash,
+    path: &'a PathBuf,
 }
 
-impl UpdateRefsConfig {
-    pub fn new(commit_hash: ObjectHash, path: PathBuf) -> Self {
+impl<'a> UpdateRefsConfig<'a> {
+    pub fn new(commit_hash: &'a ObjectHash, path: &'a PathBuf) -> Self {
         Self { commit_hash, path }
     }
 
     pub fn hash(&self) -> &ObjectHash {
-        &self.commit_hash
+        self.commit_hash
     }
 
     pub fn path(&self) -> PathBuf {
         ["not-git", "refs", "heads"]
             .iter()
             .collect::<PathBuf>()
-            .join(&self.path)
+            .join(self.path)
     }
 }
 
-pub fn update_refs(config: UpdateRefsConfig) -> Result<(), anyhow::Error> {
-    validate_hash_as_commit(config.hash())?;
+pub fn update_refs(
+    base_path: Option<&PathBuf>,
+    config: UpdateRefsConfig,
+) -> Result<(), anyhow::Error> {
+    validate_hash_as_commit(base_path, config.hash())?;
 
-    let path = config.path();
+    let path = match base_path {
+        Some(base_path) => base_path.join(config.path()),
+        None => config.path(),
+    };
+
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -39,8 +46,11 @@ pub fn update_refs(config: UpdateRefsConfig) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-fn validate_hash_as_commit(hash: &ObjectHash) -> Result<(), anyhow::Error> {
-    match ObjectFile::new(hash)? {
+fn validate_hash_as_commit(
+    base_path: Option<&PathBuf>,
+    hash: &ObjectHash,
+) -> Result<(), anyhow::Error> {
+    match ObjectFile::new(base_path, hash)? {
         ObjectFile::Tree(_) => Err(anyhow::anyhow!("Expected commit object")),
         ObjectFile::Other(object_contents) => match object_contents.object_type {
             ObjectType::Commit => Ok(()),

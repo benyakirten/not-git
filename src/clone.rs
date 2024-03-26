@@ -1,7 +1,8 @@
-use std::fs;
 use std::io::Cursor;
 use std::path::PathBuf;
+use std::{env, fs};
 
+use anyhow::Context;
 use bytes::Bytes;
 
 use reqwest::blocking::Client;
@@ -47,7 +48,7 @@ impl GitRef {
 
 pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_clone_config(args)?;
-    let (head_ref, objects) = perform_clone(config)?;
+    let (head_ref, objects) = perform_clone(None, config)?;
 
     println!(
         "Cloned {} objects into repository successfully.",
@@ -61,16 +62,21 @@ pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
 }
 
 pub fn perform_clone(
+    base_path: Option<&PathBuf>,
     config: CloneConfig,
 ) -> Result<(GitRef, Vec<packfile::PackfileObject>), anyhow::Error> {
+    prep_temp_dir()?;
+
     let dest_dir = match config.path {
         Some(path) => PathBuf::from(path),
         None => PathBuf::from("clone_folder"),
     };
 
-    let (head_ref, objects) = match clone(config) {
+    let clone_result = clone(base_path, config);
+    env::set_current_dir("..")?;
+
+    let (head_ref, objects) = match clone_result {
         Ok((head_ref, objects)) => {
-            std::env::set_current_dir("..")?;
             fs::rename(TEMP_DIR, dest_dir)?;
             (head_ref, objects)
         }
@@ -90,15 +96,26 @@ fn get_branch_name(branch: &str) -> String {
     }
 }
 
+fn prep_temp_dir() -> Result<(), anyhow::Error> {
+    if PathBuf::from(TEMP_DIR).exists() {
+        fs::remove_dir_all(TEMP_DIR)
+            .context(format!("Deleting pre-exsting {} directory", TEMP_DIR))?;
+    }
+
+    fs::create_dir(TEMP_DIR).context(format!("Creating {} directory", TEMP_DIR))?;
+    env::set_current_dir(TEMP_DIR).context(format!("Setting {} as working directory", TEMP_DIR))?;
+
+    Ok(())
+}
+
 pub fn clone(
+    base_path: Option<&PathBuf>,
     config: CloneConfig,
 ) -> Result<(GitRef, Vec<packfile::PackfileObject>), anyhow::Error> {
     // https://www.git-scm.com/docs/http-protocol
     // We could use async functions or we could run this as single-threaded with blocking calls
     // We will use blocking calls for simplicity/ease of use. I don't think there's a part that
     // would benefit from async calls yet.
-    std::fs::create_dir(TEMP_DIR)?;
-    std::env::set_current_dir(TEMP_DIR)?;
 
     let client = Client::new();
     let mut refs = discover_references(
@@ -137,11 +154,11 @@ pub fn clone(
     // Requires the commit to already be written to a file.
     let commit_hash = ObjectHash::new(&head_ref.commit_hash.full_hash())?;
     let path = PathBuf::from(head_path);
-    let update_ref_config = update_refs::UpdateRefsConfig::new(commit_hash, path);
-    update_refs::update_refs(update_ref_config)?;
+    let update_ref_config = update_refs::UpdateRefsConfig::new(&commit_hash, &path);
+    update_refs::update_refs(base_path, update_ref_config)?;
 
     let checkout_config = checkout::CheckoutConfig::new(get_branch_name(&head_ref.branch));
-    checkout::checkout_branch(&checkout_config)?;
+    checkout::checkout_branch(base_path, &checkout_config)?;
 
     Ok((head_ref, objects))
 }

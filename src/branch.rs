@@ -1,8 +1,9 @@
+use std::fs;
 use std::path::PathBuf;
 
 use crate::objects::ObjectHash;
 use crate::update_refs;
-use crate::utils::{get_head_ref, read_from_file};
+use crate::utils::get_head_ref;
 
 pub enum BranchConfig {
     List(bool),
@@ -11,42 +12,48 @@ pub enum BranchConfig {
 }
 
 pub struct ListBranchOptions {
-    branches: Vec<String>,
-    head_ref: String,
+    pub branches: Vec<String>,
+    pub head_ref: String,
 }
 
 pub struct DeleteBranchResults {
     path: PathBuf,
-    sha: String,
+    hash: String,
 }
 
 pub fn branch_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_branch_config(args)?;
     match config {
         BranchConfig::List(list_all_branches) => {
-            let branches = list_branches(list_all_branches)?;
+            let branches = list_branches(None, list_all_branches)?;
             print_branches(branches)
         }
         BranchConfig::Delete(branch_name) => {
-            let results = delete_branch(branch_name)?;
-            println!("Deleted branch {:?} (was {})", results.path, results.sha);
+            let results = delete_branch(None, &branch_name)?;
+            println!("Deleted branch {:?} (was {})", results.path, results.hash);
             Ok(())
         }
-        BranchConfig::Create(branch_name) => create_branch(branch_name),
+        BranchConfig::Create(branch_name) => create_branch(None, &branch_name),
     }
 }
 
-fn delete_branch(branch_name: String) -> Result<DeleteBranchResults, anyhow::Error> {
-    let head_ref = get_head_ref()?;
+pub fn delete_branch(
+    base_path: Option<&PathBuf>,
+    branch_name: &str,
+) -> Result<DeleteBranchResults, anyhow::Error> {
+    let head_ref = get_head_ref(base_path)?;
     if branch_name == head_ref {
         return Err(anyhow::anyhow!(
             "Cannot delete the branch you are currently on"
         ));
     }
 
-    let path: PathBuf = ["not-git", "refs", "heads", branch_name.as_str()]
-        .iter()
-        .collect();
+    let path: PathBuf = ["not-git", "refs", "heads", branch_name].iter().collect();
+    let path = match base_path {
+        Some(base_path) => base_path.join(path),
+        None => path,
+    };
+
     if !path.exists() {
         return Err(anyhow::anyhow!("Branch {} does not exist", branch_name));
     }
@@ -58,32 +65,42 @@ fn delete_branch(branch_name: String) -> Result<DeleteBranchResults, anyhow::Err
 
     Ok(DeleteBranchResults {
         path: path.iter().skip(3).collect(),
-        sha: contents.full_hash(),
+        hash: contents.full_hash(),
     })
 }
 
 // TODO: Does this functionality need to be revisited?
-fn create_branch(branch_name: String) -> Result<(), anyhow::Error> {
+pub fn create_branch(base_path: Option<&PathBuf>, branch_name: &str) -> Result<(), anyhow::Error> {
     let path: PathBuf = ["not-git", "refs", "heads", &branch_name].iter().collect();
+    let path = match base_path {
+        Some(base_path) => base_path.join(path),
+        None => path,
+    };
+
     if path.exists() {
         return Err(anyhow::anyhow!("Branch {} already exists", branch_name));
     }
 
-    let head_ref = get_head_ref()?;
-    let head_path: PathBuf = ["not-git", "refs", "heads", &head_ref].iter().collect();
+    let head_ref = get_head_ref(base_path)?;
+    let head_path: PathBuf = PathBuf::from("not-git/refs/heads").join(head_ref);
+    let head_path = match base_path {
+        Some(base_path) => base_path.join(head_path),
+        None => head_path,
+    };
 
     if !head_path.exists() {
         return Err(anyhow::anyhow!("HEAD does not point to a valid branch"));
     }
 
     let head_commit = {
-        let head_commit = read_from_file(&head_path)?;
+        let head_commit = fs::read(&head_path)?;
         let head_commit = String::from_utf8(head_commit)?;
         ObjectHash::new(&head_commit)?
     };
 
-    let config = update_refs::UpdateRefsConfig::new(head_commit, PathBuf::from(branch_name));
-    update_refs::update_refs(config)?;
+    let update_path = PathBuf::from(branch_name);
+    let config = update_refs::UpdateRefsConfig::new(&head_commit, &update_path);
+    update_refs::update_refs(base_path, config)?;
 
     Ok(())
 }
@@ -100,15 +117,23 @@ fn print_branches(branches: ListBranchOptions) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-pub fn list_branches(_list_all_branches: bool) -> Result<ListBranchOptions, anyhow::Error> {
+pub fn list_branches(
+    base_path: Option<&PathBuf>,
+    _list_all_branches: bool,
+) -> Result<ListBranchOptions, anyhow::Error> {
     // TODO: Handle tags
 
     let head_path: PathBuf = ["not-git", "refs", "heads"].iter().collect();
+    let head_path = match base_path {
+        Some(base_path) => base_path.join(head_path),
+        None => head_path,
+    };
+
     let branches = collect_branches(vec![], head_path)?;
 
     // TODO: List all branches if -a tag - decode packed-refs
 
-    let head_ref = get_head_ref()?;
+    let head_ref = get_head_ref(base_path)?;
 
     let branch_options = ListBranchOptions { branches, head_ref };
     Ok(branch_options)

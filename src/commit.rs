@@ -18,7 +18,7 @@ impl CommitConfig {
 
 pub fn commit_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_commit_config(args)?;
-    commit(config)?;
+    commit(None, config)?;
 
     // TODO: Add proper output message.
     // I believe this has to do with packfiles
@@ -30,23 +30,27 @@ pub fn commit_command(args: &[String]) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-pub fn commit(config: CommitConfig) -> Result<(), anyhow::Error> {
-    let head_ref: String = get_head_ref()?;
-    let head_hash = get_parent_hash(&head_ref)?;
+pub fn commit(base_path: Option<&PathBuf>, config: CommitConfig) -> Result<(), anyhow::Error> {
+    let head_ref = get_head_ref(base_path)?;
+    let head_hash = get_parent_hash(base_path, &head_ref)?;
     let parent_hash = match head_hash {
-        Some(hash) => get_parent_commit(hash)?,
+        Some(hash) => get_parent_commit(base_path, hash)?,
         None => None,
     };
 
-    let tree_hash = write_tree::write_tree(None)?;
+    let tree_path = match base_path {
+        Some(path) => path.to_str(),
+        None => None,
+    };
+    let tree_hash = write_tree::create_tree(tree_path)?;
 
     let commit_tree_config =
-        commit_tree::CommitTreeConfig::new(tree_hash, config.message, parent_hash);
-    let commit_hash = commit_tree::create_commit(commit_tree_config)?;
+        commit_tree::CommitTreeConfig::new(&tree_hash, config.message, parent_hash);
+    let commit_hash = commit_tree::create_commit(base_path, commit_tree_config)?;
 
-    let update_refs_config =
-        update_refs::UpdateRefsConfig::new(commit_hash, PathBuf::from(head_ref));
-    update_refs::update_refs(update_refs_config)?;
+    let update_path = PathBuf::from(head_ref);
+    let update_refs_config = update_refs::UpdateRefsConfig::new(&commit_hash, &update_path);
+    update_refs::update_refs(base_path, update_refs_config)?;
 
     Ok(())
 }
@@ -62,12 +66,16 @@ fn parse_commit_config(args: &[String]) -> Result<CommitConfig, anyhow::Error> {
     Ok(config)
 }
 
-fn get_parent_hash(head_ref: &str) -> Result<Option<ObjectHash>, anyhow::Error> {
+fn get_parent_hash(
+    base_path: Option<&PathBuf>,
+    head_ref: &str,
+) -> Result<Option<ObjectHash>, anyhow::Error> {
     let head_file_path = PathBuf::from(head_ref);
-    let head_file_path = ["not-git", "refs", "heads"]
-        .iter()
-        .collect::<PathBuf>()
-        .join(head_file_path);
+    let head_file_path = PathBuf::from("not-git/refs/heads").join(head_file_path);
+    let head_file_path = match base_path {
+        Some(path) => path.join(head_file_path),
+        None => head_file_path,
+    };
 
     if !head_file_path.exists() {
         return Ok(None);
@@ -78,8 +86,11 @@ fn get_parent_hash(head_ref: &str) -> Result<Option<ObjectHash>, anyhow::Error> 
     Ok(Some(hash))
 }
 
-fn get_parent_commit(object_hash: ObjectHash) -> Result<Option<ObjectHash>, anyhow::Error> {
-    let commit = ObjectFile::new(&object_hash)?;
+fn get_parent_commit(
+    base_path: Option<&PathBuf>,
+    object_hash: ObjectHash,
+) -> Result<Option<ObjectHash>, anyhow::Error> {
+    let commit = ObjectFile::new(base_path, &object_hash)?;
     let commit_content = match commit {
         ObjectFile::Tree(_) => Err(anyhow::anyhow!("Expected commit object")),
         ObjectFile::Other(object_contents) => match object_contents.object_type {

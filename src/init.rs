@@ -2,14 +2,14 @@ use std::fs;
 use std::path::PathBuf;
 
 pub struct InitConfig<'a> {
-    commit_name: &'a str,
+    branch_name: &'a str,
     directory: Option<&'a str>,
 }
 
 impl<'a> InitConfig<'a> {
-    pub fn new(commit_name: &'a str, directory: Option<&'a str>) -> Self {
+    pub fn new(branch_name: &'a str, directory: Option<&'a str>) -> Self {
         InitConfig {
-            commit_name,
+            branch_name,
             directory,
         }
     }
@@ -26,7 +26,7 @@ pub fn create_directories(config: InitConfig) -> Result<(), anyhow::Error> {
     fs::create_dir_all(base_path.join("refs/heads"))?;
     fs::write(
         base_path.join("HEAD"),
-        format!("ref: refs/heads/{}\n", config.commit_name),
+        format!("ref: refs/heads/{}\n", config.branch_name),
     )?;
     fs::write(
         base_path.join("packed-refs"),

@@ -135,7 +135,7 @@ pub fn decode_undeltified_data(
     cursor: &mut Cursor<&[u8]>,
 ) -> Result<(Vec<u8>, ObjectHash, ObjectType), anyhow::Error> {
     let data = read_next_zlib_data(cursor)?;
-    let hash = hash_object::hash_and_write_object(&file_type, &mut data.clone())?;
+    let hash = hash_object::hash_and_write_object(None, &file_type, &mut data.clone())?;
     Ok((data, hash, file_type))
 }
 
@@ -197,7 +197,8 @@ fn compile_file_from_deltas(
     let delta_data = read_next_zlib_data(cursor)?;
     let file_contents = apply_deltas(object, delta_data)?;
 
-    let hash = hash_object::hash_and_write_object(&object.file_type, &mut file_contents.clone())?;
+    let hash =
+        hash_object::hash_and_write_object(None, &object.file_type, &mut file_contents.clone())?;
 
     Ok((file_contents, hash, object.file_type.clone()))
 }

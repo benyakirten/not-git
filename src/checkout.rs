@@ -15,20 +15,24 @@ impl CheckoutConfig {
     }
 }
 
-pub fn checkout_branch(config: &CheckoutConfig) -> Result<usize, anyhow::Error> {
-    let initial_tree = get_initial_tree(config)?;
+pub fn checkout_branch(
+    base_path: Option<&PathBuf>,
+    config: &CheckoutConfig,
+) -> Result<usize, anyhow::Error> {
+    let initial_tree = get_initial_tree(base_path, config)?;
 
-    create_tree(initial_tree, vec![])
+    create_tree(base_path, initial_tree, vec![])
 }
 
 fn create_tree(
+    base_path: Option<&PathBuf>,
     tree_objects: Vec<TreeObject>,
     path_until_now: Vec<&str>,
 ) -> Result<usize, anyhow::Error> {
     let mut num_files_written = 0;
 
     for tree_object in tree_objects {
-        let object: ObjectFile = ObjectFile::new(&tree_object.hash)?;
+        let object: ObjectFile = ObjectFile::new(base_path, &tree_object.hash)?;
 
         match object {
             ObjectFile::Tree(object_contents) => {
@@ -37,7 +41,7 @@ fn create_tree(
 
                 fs::create_dir_all(new_path.iter().collect::<PathBuf>())?;
 
-                num_files_written += create_tree(object_contents.contents, new_path)?;
+                num_files_written += create_tree(base_path, object_contents.contents, new_path)?;
             }
             ObjectFile::Other(object_contents) => {
                 let file_path = path_until_now
@@ -54,7 +58,10 @@ fn create_tree(
     Ok(num_files_written)
 }
 
-fn get_initial_tree(config: &CheckoutConfig) -> Result<Vec<TreeObject>, anyhow::Error> {
+fn get_initial_tree(
+    base_path: Option<&PathBuf>,
+    config: &CheckoutConfig,
+) -> Result<Vec<TreeObject>, anyhow::Error> {
     let path: PathBuf = if config.branch_name.starts_with("remote") {
         ["not-git", "refs"].iter().collect()
     } else {
@@ -65,7 +72,7 @@ fn get_initial_tree(config: &CheckoutConfig) -> Result<Vec<TreeObject>, anyhow::
     let commit_hash = fs::read_to_string(branch_path)?;
     let commit_hash = ObjectHash::new(&commit_hash)?;
 
-    let object_file = ObjectFile::new(&commit_hash).context(format!(
+    let object_file = ObjectFile::new(base_path, &commit_hash).context(format!(
         "Unable to find commit associated with branch {}",
         config.branch_name
     ))?;
@@ -94,7 +101,8 @@ fn get_initial_tree(config: &CheckoutConfig) -> Result<Vec<TreeObject>, anyhow::
 
     let tree_hash = ObjectHash::new(tree_hash)?;
 
-    let tree_object = ObjectFile::new(&tree_hash).context("Unable to find tree object")?;
+    let tree_object =
+        ObjectFile::new(base_path, &tree_hash).context("Unable to find tree object")?;
     match tree_object {
         ObjectFile::Tree(tree_object) => Ok(tree_object.contents),
         ObjectFile::Other(_) => Err(anyhow::anyhow!("Expected tree object")),
