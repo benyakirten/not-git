@@ -49,7 +49,6 @@ impl ObjectFile {
             None => hash.into(),
         };
 
-        let val = std::fs::read(&path);
         let contents = decode_file(path).context("Decoding file from hash")?;
 
         let (header, body) =

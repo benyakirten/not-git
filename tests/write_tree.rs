@@ -34,5 +34,5 @@ fn test_write_tree_success() {
         "7abecc23db04e758fd76dd97a97901597ced79cf"
     );
 
-    let tree_file = ObjectFile::new(Some(&path.0), &tree_hash);
+    let tree_file = ObjectFile::new(Some(&path.0), &tree_hash).unwrap();
 }

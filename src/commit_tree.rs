@@ -23,6 +23,8 @@ pub fn commit_tree_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_commit_tree_config(args)?;
     let hash = create_commit(config)?;
 
+    println!("{}", hash.full_hash());
+
     Ok(())
 }
 
