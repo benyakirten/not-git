@@ -6,6 +6,8 @@ use hex::ToHex;
 use not_git::objects::{ObjectHash, ObjectType, TreeObject};
 use sha1::{Digest, Sha1};
 
+// TODO: Figure out why some functions are marked as not being used.
+
 pub struct TestPath(pub PathBuf);
 
 impl TestPath {
@@ -26,6 +28,7 @@ impl TestPath {
         self.0.join(path)
     }
 
+    #[allow(dead_code)]
     pub fn to_str(&self) -> Option<&str> {
         self.0.to_str()
     }
@@ -37,6 +40,7 @@ impl Drop for TestPath {
     }
 }
 
+#[allow(dead_code)]
 pub fn write_object(
     path: &TestPath,
     object_type: &ObjectType,
@@ -66,6 +70,7 @@ pub fn write_object(
     hash
 }
 
+#[allow(dead_code)]
 pub fn write_tree(path: &TestPath, tree: Vec<TreeObject>) -> ObjectHash {
     let mut tree_contents = vec![];
     for tree_object in tree {
