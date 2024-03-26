@@ -97,7 +97,7 @@ mod tests {
 
     // TODO: Use macros to make these into parametrized tests
     #[test]
-    fn test_from_mode() {
+    fn from_mode() {
         assert_eq!(ObjectType::from_mode("100644").unwrap(), ObjectType::Blob);
         assert_eq!(ObjectType::from_mode("040000").unwrap(), ObjectType::Tree);
         assert_eq!(
@@ -112,7 +112,7 @@ mod tests {
     }
 
     #[test]
-    fn test_to_mode() {
+    fn to_mode() {
         assert_eq!(ObjectType::Blob.to_mode(), "100644");
         assert_eq!(ObjectType::Tree.to_mode(), "040000");
         assert_eq!(ObjectType::Executable.to_mode(), "100755");
@@ -122,7 +122,7 @@ mod tests {
     }
 
     #[test]
-    fn test_as_str() {
+    fn as_str() {
         assert_eq!(ObjectType::Blob.as_str(), "blob");
         assert_eq!(ObjectType::Tree.as_str(), "tree");
         assert_eq!(ObjectType::Executable.as_str(), "executable");
@@ -132,7 +132,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_str() {
+    fn from_str() {
         assert_eq!(ObjectType::from_str("blob").unwrap(), ObjectType::Blob);
         assert_eq!(ObjectType::from_str("tree").unwrap(), ObjectType::Tree);
         assert_eq!(

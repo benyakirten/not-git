@@ -71,7 +71,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_from_object_success() {
+    fn from_object_success() {
         let mut file_contents: Vec<u8> = vec![];
 
         let file_name1 = "file1";
@@ -115,7 +115,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_object_error_if_invalid_object() {
+    fn from_object_error_if_invalid_object() {
         let mut file_contents: Vec<u8> = vec![];
 
         let file_name1 = "file1";

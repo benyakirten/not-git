@@ -1,7 +1,7 @@
 use std::fs;
 use std::io::Write;
-use std::path::PathBuf;
 
+use common::TestPath;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 
@@ -26,7 +26,7 @@ fn split_header_from_body_error_no_null_byte() {
 }
 
 #[test]
-fn test_create_header_success() {
+fn create_header_success() {
     let object_type = ObjectType::Blob;
     let file = b"file content";
     let header = create_header(&object_type, file);
@@ -34,7 +34,7 @@ fn test_create_header_success() {
 }
 
 #[test]
-fn test_split_header_from_contents_success() {
+fn split_header_from_contents_success() {
     let content = b"blob 5\0hello";
     let (header, body) = split_header_from_contents(content).unwrap();
     assert_eq!(header, b"blob 5");
@@ -42,15 +42,15 @@ fn test_split_header_from_contents_success() {
 }
 
 #[test]
-fn test_split_header_from_contents_error() {
+fn split_header_from_contents_error() {
     let content = b"blob 5hello";
     let result = split_header_from_contents(content);
     assert!(result.is_err());
 }
 
-fn write_head_file(contents: &str) -> PathBuf {
+fn write_head_file(contents: &str) -> TestPath {
     let path = common::setup();
-    let head = path.join("not-git").join("HEAD");
+    let head = path.0.join("not-git").join("HEAD");
 
     fs::create_dir_all(head.parent().unwrap()).unwrap();
     fs::write(head, contents).unwrap();
@@ -59,41 +59,35 @@ fn write_head_file(contents: &str) -> PathBuf {
 }
 
 #[test]
-fn test_get_head_ref_success() {
+fn get_head_ref_success() {
     let branch_name: &str = "test_branch_name";
     let path = write_head_file(&format!("ref: refs/heads/{}\n", branch_name));
 
-    let head_ref = get_head_ref(Some(&path)).unwrap();
+    let head_ref = get_head_ref(Some(&path.0)).unwrap();
     assert_eq!(head_ref, branch_name);
-
-    common::cleanup(path);
 }
 
 #[test]
-fn test_get_head_ref_error_no_file() {
-    let path = common::setup();
+fn get_head_ref_error_no_file() {
+    let _ = common::setup();
 
     let result = get_head_ref(None);
     assert!(result.is_err());
-
-    common::cleanup(path);
 }
 
 #[test]
-fn test_get_head_ref_error_improper_format() {
+fn get_head_ref_error_improper_format() {
     let branch_name: &str = "test_branch_name";
-    let path = write_head_file(&format!("refs/heads/{}\n", branch_name));
+    let _ = write_head_file(&format!("refs/heads/{}\n", branch_name));
 
     let result = get_head_ref(None);
     assert!(result.is_err());
-
-    common::cleanup(path);
 }
 
 #[test]
-fn test_decode_file_success() {
+fn decode_file_success() {
     let path = common::setup();
-    let file_path = path.join("test_file");
+    let file_path = path.0.join("test_file");
 
     let contents = b"these are the file contents".to_vec();
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
@@ -104,31 +98,25 @@ fn test_decode_file_success() {
 
     let decoded = not_git::utils::decode_file(file_path).unwrap();
     assert_eq!(decoded, contents);
-
-    common::cleanup(path);
 }
 
 #[test]
-fn test_decode_file_error_no_file() {
+fn decode_file_error_no_file() {
     let path = common::setup();
-    let file_path = path.join("test_file");
+    let file_path = path.0.join("test_file");
 
     let decoded = not_git::utils::decode_file(file_path);
     assert!(decoded.is_err());
-
-    common::cleanup(path);
 }
 
 #[test]
-fn test_decode_file_error_not_encoded() {
+fn decode_file_error_not_encoded() {
     let path = common::setup();
-    let file_path = path.join("test_file");
+    let file_path = path.0.join("test_file");
 
     let contents = b"these are the file contents".to_vec();
     fs::write(&file_path, contents).unwrap();
 
     let decoded = not_git::utils::decode_file(file_path);
     assert!(decoded.is_err());
-
-    common::cleanup(path);
 }
