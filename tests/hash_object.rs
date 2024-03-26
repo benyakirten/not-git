@@ -25,3 +25,5 @@ fn hash_object_encodes_file_to_zlib_with_header() {
     assert_eq!(header, b"blob 11\0");
     assert_eq!(body, contents);
 }
+
+// Almost all errors are OS-based, and I'm not sure how to trigger them for a test

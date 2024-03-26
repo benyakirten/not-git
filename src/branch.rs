@@ -12,8 +12,8 @@ pub enum BranchConfig {
 }
 
 pub struct ListBranchOptions {
-    branches: Vec<String>,
-    head_ref: String,
+    pub branches: Vec<String>,
+    pub head_ref: String,
 }
 
 pub struct DeleteBranchResults {
@@ -29,17 +29,17 @@ pub fn branch_command(args: &[String]) -> Result<(), anyhow::Error> {
             print_branches(branches)
         }
         BranchConfig::Delete(branch_name) => {
-            let results = delete_branch(None, branch_name)?;
+            let results = delete_branch(None, &branch_name)?;
             println!("Deleted branch {:?} (was {})", results.path, results.hash);
             Ok(())
         }
-        BranchConfig::Create(branch_name) => create_branch(None, branch_name),
+        BranchConfig::Create(branch_name) => create_branch(None, &branch_name),
     }
 }
 
 pub fn delete_branch(
     base_path: Option<&PathBuf>,
-    branch_name: String,
+    branch_name: &str,
 ) -> Result<DeleteBranchResults, anyhow::Error> {
     let head_ref = get_head_ref(base_path)?;
     if branch_name == head_ref {
@@ -48,9 +48,12 @@ pub fn delete_branch(
         ));
     }
 
-    let path: PathBuf = ["not-git", "refs", "heads", branch_name.as_str()]
-        .iter()
-        .collect();
+    let path: PathBuf = ["not-git", "refs", "heads", branch_name].iter().collect();
+    let path = match base_path {
+        Some(base_path) => base_path.join(path),
+        None => path,
+    };
+
     if !path.exists() {
         return Err(anyhow::anyhow!("Branch {} does not exist", branch_name));
     }
@@ -67,10 +70,7 @@ pub fn delete_branch(
 }
 
 // TODO: Does this functionality need to be revisited?
-pub fn create_branch(
-    base_path: Option<&PathBuf>,
-    branch_name: String,
-) -> Result<(), anyhow::Error> {
+pub fn create_branch(base_path: Option<&PathBuf>, branch_name: &str) -> Result<(), anyhow::Error> {
     let path: PathBuf = ["not-git", "refs", "heads", &branch_name].iter().collect();
     let path = match base_path {
         Some(base_path) => base_path.join(path),

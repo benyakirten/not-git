@@ -21,8 +21,8 @@ fn update_refs_success() {
     let tree_hash = ObjectHash::from_bytes(&tree_hash).unwrap();
 
     let new_commit_hash = common::write_commit(&path, &tree_hash, None, "test-commit");
-
     let update_path = PathBuf::from("abc/def/ghi");
+
     let config = update_refs::UpdateRefsConfig::new(&new_commit_hash, &update_path);
     update_refs::update_refs(Some(&path.0), config).unwrap();
 
@@ -40,8 +40,8 @@ fn update_refs_create_branch_if_not_exists() {
     let tree_hash = ObjectHash::from_bytes(&tree_hash).unwrap();
 
     let commit_hash = common::write_commit(&path, &tree_hash, None, "test-commit");
-
     let update_path = PathBuf::from("abc/def/ghi");
+
     let config = update_refs::UpdateRefsConfig::new(&commit_hash, &update_path);
     update_refs::update_refs(Some(&path.0), config).unwrap();
 
@@ -58,8 +58,8 @@ fn update_refs_failure_not_commit_hash() {
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
     ];
     let commit_hash = ObjectHash::from_bytes(&commit_hash).unwrap();
-
     let update_path = PathBuf::from("abc/def/ghi");
+
     let config = update_refs::UpdateRefsConfig::new(&commit_hash, &update_path);
     let update_refs_result = update_refs::update_refs(Some(&path.0), config);
 
