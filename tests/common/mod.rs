@@ -1,3 +1,4 @@
+use std::ops::Deref;
 use std::path::PathBuf;
 use std::{fs, io::Read};
 
@@ -8,20 +9,38 @@ use sha1::{Digest, Sha1};
 
 pub struct TestPath(pub PathBuf);
 
+impl TestPath {
+    pub fn new() -> Self {
+        let test_dir_name = uuid::Uuid::new_v4().to_string();
+        let test_dir = [".test", &test_dir_name].iter().collect::<PathBuf>();
+        if !test_dir.exists() {
+            fs::create_dir_all(&test_dir).unwrap();
+        }
+
+        Self(test_dir)
+    }
+
+    pub fn join(&self, path: &str) -> PathBuf {
+        self.0.join(path)
+    }
+
+    pub fn to_str(&self) -> Option<&str> {
+        self.0.to_str()
+    }
+}
+
+impl Deref for TestPath {
+    type Target = PathBuf;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl Drop for TestPath {
     fn drop(&mut self) {
         fs::remove_dir_all(&self.0).unwrap();
     }
-}
-
-pub fn setup() -> TestPath {
-    let test_dir_name = uuid::Uuid::new_v4().to_string();
-    let test_dir = [".test", &test_dir_name].iter().collect::<PathBuf>();
-    if !test_dir.exists() {
-        fs::create_dir_all(&test_dir).unwrap();
-    }
-
-    TestPath(test_dir)
 }
 
 pub fn write_object(

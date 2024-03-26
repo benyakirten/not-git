@@ -4,11 +4,11 @@ mod common;
 
 #[test]
 fn parse_blob_file() {
-    let path = common::setup();
+    let path = common::TestPath::new();
     let mut contents = b"Hello, World!".to_vec();
-    let object_hash = common::write_object(&path.0, &ObjectType::Blob, &mut contents);
+    let object_hash = common::write_object(&*path, &ObjectType::Blob, &mut contents);
 
-    let object_file = ObjectFile::new(Some(&path.0), &object_hash).unwrap();
+    let object_file = ObjectFile::new(Some(&*path), &object_hash).unwrap();
     match object_file {
         ObjectFile::Other(contents) => {
             assert_eq!(contents.size, 13);
@@ -21,16 +21,16 @@ fn parse_blob_file() {
 
 #[test]
 fn parse_object_tree_file() {
-    let path = common::setup();
+    let path = common::TestPath::new();
 
     let mut contents_1 = b"Test 1".to_vec();
-    let object_hash_1 = common::write_object(&path.0, &ObjectType::Blob, &mut contents_1);
+    let object_hash_1 = common::write_object(&*path, &ObjectType::Blob, &mut contents_1);
 
     let mut contents_2 = b"Test 2".to_vec();
-    let object_hash_2 = common::write_object(&path.0, &ObjectType::Blob, &mut contents_2);
+    let object_hash_2 = common::write_object(&*path, &ObjectType::Blob, &mut contents_2);
 
     let mut contents_3 = b"Test 1".to_vec();
-    let object_hash_3 = common::write_object(&path.0, &ObjectType::Tree, &mut contents_3);
+    let object_hash_3 = common::write_object(&*path, &ObjectType::Tree, &mut contents_3);
 
     let tree_objects: Vec<TreeObject> = vec![
         TreeObject::new(ObjectType::Blob, "file1".to_string(), object_hash_1.clone()),
@@ -38,9 +38,9 @@ fn parse_object_tree_file() {
         TreeObject::new(ObjectType::Tree, "tree1".to_string(), object_hash_3.clone()),
     ];
 
-    let tree_hash = common::write_tree(&path.0, tree_objects);
+    let tree_hash = common::write_tree(&*path, tree_objects);
 
-    let tree_file = ObjectFile::new(Some(&path.0), &tree_hash).unwrap();
+    let tree_file = ObjectFile::new(Some(&*path), &tree_hash).unwrap();
     match tree_file {
         ObjectFile::Tree(object_contents) => {
             assert_eq!(object_contents.object_type, ObjectType::Tree);
@@ -69,12 +69,12 @@ fn parse_object_tree_file() {
 
 #[test]
 fn parse_fails_on_file_not_zlib_encoded() {
-    let path = common::setup();
+    let path = common::TestPath::new();
     // TODO
 }
 
 #[test]
 fn parse_fails_on_file_not_found() {
-    let path = common::setup();
+    let path = common::TestPath::new();
     // TODO
 }
