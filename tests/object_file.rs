@@ -1,4 +1,6 @@
-use not_git::objects::{ObjectFile, ObjectType, TreeObject};
+use std::fs;
+
+use not_git::objects::{ObjectFile, ObjectHash, ObjectType, TreeObject};
 
 mod common;
 
@@ -68,13 +70,29 @@ fn parse_object_tree_file() {
 }
 
 #[test]
-fn parse_fails_on_file_not_zlib_encoded() {
+fn parse_fails_on_file_improper_format() {
     let path = common::TestPath::new();
-    // TODO
+
+    let hash = "0123456789abcdef0123456789abcdef01234567";
+    let object_hash = ObjectHash::new(hash).unwrap();
+
+    let file_path = path.join(&object_hash.path());
+
+    fs::create_dir_all(file_path.parent().unwrap()).unwrap();
+    fs::write(&file_path, b"improper format").unwrap();
+
+    let object_file = ObjectFile::new(Some(&path.0), &object_hash);
+    assert!(object_file.is_err());
 }
 
 #[test]
 fn parse_fails_on_file_not_found() {
     let path = common::TestPath::new();
-    // TODO
+
+    let hash = "0123456789abcdef0123456789abcdef01234567";
+    let object_hash = ObjectHash::new(hash).unwrap();
+    let file_path = path.join(&object_hash.path());
+
+    let object_file = ObjectFile::new(Some(&file_path), &object_hash);
+    assert!(object_file.is_err());
 }
