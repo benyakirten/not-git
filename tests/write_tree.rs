@@ -29,7 +29,7 @@ fn test_write_tree_success() {
     fs::write(sub_dir.join(&file_name_3), &contents_3).unwrap();
 
     let path_str = path.0.to_str();
-    let tree_hash = write_tree::write_tree(path_str).unwrap();
+    let tree_hash = write_tree::create_tree(path_str).unwrap();
 
     assert_eq!(
         tree_hash.full_hash(),

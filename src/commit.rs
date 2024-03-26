@@ -31,14 +31,18 @@ pub fn commit_command(args: &[String]) -> Result<(), anyhow::Error> {
 }
 
 pub fn commit(base_path: Option<&PathBuf>, config: CommitConfig) -> Result<(), anyhow::Error> {
-    let head_ref: String = get_head_ref(None)?;
-    let head_hash = get_parent_hash(&head_ref)?;
+    let head_ref = get_head_ref(base_path)?;
+    let head_hash = get_parent_hash(base_path, &head_ref)?;
     let parent_hash = match head_hash {
         Some(hash) => get_parent_commit(base_path, hash)?,
         None => None,
     };
 
-    let tree_hash = write_tree::write_tree(None)?;
+    let tree_path = match base_path {
+        Some(path) => path.to_str(),
+        None => None,
+    };
+    let tree_hash = write_tree::create_tree(tree_path)?;
 
     let commit_tree_config =
         commit_tree::CommitTreeConfig::new(&tree_hash, config.message, parent_hash);
@@ -62,12 +66,17 @@ fn parse_commit_config(args: &[String]) -> Result<CommitConfig, anyhow::Error> {
     Ok(config)
 }
 
-fn get_parent_hash(head_ref: &str) -> Result<Option<ObjectHash>, anyhow::Error> {
-    let head_file_path = PathBuf::from(head_ref);
-    let head_file_path = ["not-git", "refs", "heads"]
-        .iter()
-        .collect::<PathBuf>()
-        .join(head_file_path);
+fn get_parent_hash(
+    base_path: Option<&PathBuf>,
+    head_ref: &str,
+) -> Result<Option<ObjectHash>, anyhow::Error> {
+    let head_ref = ObjectHash::new(head_ref)?;
+
+    let head_file_path = head_ref.path();
+    let head_file_path = match base_path {
+        Some(path) => path.join(head_file_path),
+        None => head_file_path,
+    };
 
     if !head_file_path.exists() {
         return Ok(None);

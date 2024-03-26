@@ -1,6 +1,6 @@
 use std::env;
 
-use not_git::{branch, clone, commit, hash_object, write_tree};
+use not_git::{branch, clone, commit, hash_object, init, write_tree};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -12,6 +12,7 @@ fn main() {
 
     let command = args[1].to_string();
     let result = match command.as_str() {
+        "init" => init::create_directories(init::InitConfig::new("main", None)),
         "hash-object" => hash_object::hash_object_command(&args[2..]),
         "branch" => branch::branch_command(&args[2..]),
         "commit" => commit::commit_command(&args[2..]),

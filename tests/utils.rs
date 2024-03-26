@@ -69,18 +69,18 @@ fn get_head_ref_success() {
 
 #[test]
 fn get_head_ref_error_no_file() {
-    let _ = common::TestPath::new();
+    let path = common::TestPath::new();
 
-    let result = get_head_ref(None);
+    let result = get_head_ref(Some(&path.0));
     assert!(result.is_err());
 }
 
 #[test]
 fn get_head_ref_error_improper_format() {
     let branch_name: &str = "test_branch_name";
-    let _ = write_head_file(&format!("refs/heads/{}\n", branch_name));
+    let path = write_head_file(&format!("refs/heads/{}\n", branch_name));
 
-    let result = get_head_ref(None);
+    let result = get_head_ref(Some(&path.0));
     assert!(result.is_err());
 }
 

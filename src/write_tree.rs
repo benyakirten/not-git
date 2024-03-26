@@ -27,13 +27,13 @@ impl TreeFile {
 }
 
 pub fn write_tree_command(_: &[String]) -> Result<(), anyhow::Error> {
-    let hash = write_tree(None)?;
+    let hash = create_tree(None)?;
     println!("{}", hash.full_hash());
 
     Ok(())
 }
 
-pub fn write_tree(path: Option<&str>) -> Result<ObjectHash, anyhow::Error> {
+pub fn create_tree(path: Option<&str>) -> Result<ObjectHash, anyhow::Error> {
     let path = match path {
         None => env::current_dir()?,
         Some(path) => PathBuf::from(path),
