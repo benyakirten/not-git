@@ -59,6 +59,35 @@ fn commit_successful_without_parent_commit() {
     };
 
     assert_eq!(head_commit.object_type, ObjectType::Commit);
+
+    let commit_content = String::from_utf8(head_commit.contents).unwrap();
+    let mut commit_lines = commit_content.lines();
+
+    let tree = commit_lines.next().unwrap();
+    let tree_commit = ObjectHash::new(&tree[5..]).unwrap();
+
+    let author = commit_lines.next().unwrap();
+    assert_eq!(author, "author Ben Horowitz <benyakir.horowitz@gmail.com>");
+
+    let committer = commit_lines.next().unwrap();
+    assert_eq!(
+        committer,
+        "committer Ben Horowitz <benyakir.horowitz@gmail.com>"
+    );
+
+    let tree_object = ObjectFile::new(Some(&path.0), &tree_commit).unwrap();
+    let tree_object = match tree_object {
+        ObjectFile::Other(_) => panic!("Expected tree object"),
+        ObjectFile::Tree(tree) => tree,
+    };
+
+    let tree_file_1 = &tree_object.contents[0];
+    let tree_file_2 = &tree_object.contents[1];
+    let tree_file_3 = &tree_object.contents[2];
+
+    assert_eq!(tree_file_1.file_name, file_name_1);
+    assert_eq!(tree_file_2.file_name, file_name_2);
+    assert_eq!(tree_file_3.file_name, file_name_3);
 }
 
 #[test]
