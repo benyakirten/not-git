@@ -81,7 +81,6 @@ pub fn perform_clone(
             (head_ref, objects)
         }
         Err(e) => {
-            println!("HERE AT {:?}!", env::current_dir());
             fs::remove_dir_all(".tmp")?;
             return Err(e);
         }

@@ -20,13 +20,14 @@ pub fn hash_object_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_config(args)?;
     let mut file_contents = fs::read(config.file.as_str())?;
 
-    let hash = hash_and_write_object(&ObjectType::Blob, &mut file_contents)?;
+    let hash = hash_and_write_object(None, &ObjectType::Blob, &mut file_contents)?;
     print!("{}", &hash.full_hash());
 
     Ok(())
 }
 
 pub fn hash_and_write_object(
+    base_path: Option<&PathBuf>,
     file_type: &ObjectType,
     file_contents: &mut Vec<u8>,
 ) -> Result<ObjectHash, anyhow::Error> {
@@ -36,13 +37,20 @@ pub fn hash_and_write_object(
     let hash = hash_file(&header)?;
     let encoded_contents = encode_file_contents(header)?;
 
-    write_encoded_object(&hash, encoded_contents)?;
+    write_encoded_object(base_path, &hash, encoded_contents)?;
 
     Ok(hash)
 }
 
-fn write_encoded_object(hash: &ObjectHash, encoded_contents: Vec<u8>) -> Result<(), anyhow::Error> {
-    let path: PathBuf = hash.path();
+fn write_encoded_object(
+    base_path: Option<&PathBuf>,
+    hash: &ObjectHash,
+    encoded_contents: Vec<u8>,
+) -> Result<(), anyhow::Error> {
+    let path: PathBuf = match base_path {
+        Some(base_path) => base_path.join(hash.path()),
+        None => hash.path(),
+    };
 
     let parent = path
         .parent()

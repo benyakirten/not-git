@@ -38,7 +38,7 @@ pub fn commit(base_path: Option<&PathBuf>, config: CommitConfig) -> Result<(), a
         None => None,
     };
 
-    let tree_hash = write_tree::write_tree(None)?;
+    let tree_hash = write_tree::write_tree(None, None)?;
 
     let commit_tree_config =
         commit_tree::CommitTreeConfig::new(tree_hash, config.message, parent_hash);

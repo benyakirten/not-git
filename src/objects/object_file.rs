@@ -10,6 +10,7 @@ use crate::utils::{decode_file, split_header_from_contents};
 /// cannot be parsed to a string once decoded from Zlib since the file shas will
 /// need to be decoded from the bytes in a secondary step.
 /// TODO: Examples + Links to documentation
+#[derive(Debug)]
 pub enum ObjectFile {
     Tree(ObjectContents<TreeObject>),
     Other(ObjectContents<u8>),
@@ -19,6 +20,7 @@ pub enum ObjectFile {
 /// once decoded, begin with `<file_type> <size>\0`, which can be relevant for checking
 /// for verifying object file/size integrity or for general information (such as ls-tree).
 /// TODO: Examples + Links to documentation
+#[derive(Debug)]
 pub struct ObjectContents<T> {
     pub object_type: ObjectType,
     pub contents: Vec<T>,
@@ -47,6 +49,7 @@ impl ObjectFile {
             None => hash.into(),
         };
 
+        let val = std::fs::read(&path);
         let contents = decode_file(path).context("Decoding file from hash")?;
 
         let (header, body) =

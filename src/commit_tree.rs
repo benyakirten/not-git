@@ -23,13 +23,12 @@ pub fn commit_tree_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_commit_tree_config(args)?;
     let hash = create_commit(config)?;
 
-    println!("{}", hash.full_hash());
     Ok(())
 }
 
 pub fn create_commit(config: CommitTreeConfig) -> Result<ObjectHash, anyhow::Error> {
     let mut contents = create_file_contents(config)?;
-    let hash = hash_object::hash_and_write_object(&ObjectType::Commit, &mut contents)?;
+    let hash = hash_object::hash_and_write_object(None, &ObjectType::Commit, &mut contents)?;
 
     Ok(hash)
 }
