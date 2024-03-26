@@ -70,9 +70,8 @@ fn get_parent_hash(
     base_path: Option<&PathBuf>,
     head_ref: &str,
 ) -> Result<Option<ObjectHash>, anyhow::Error> {
-    let head_ref = ObjectHash::new(head_ref)?;
-
-    let head_file_path = head_ref.path();
+    let head_file_path = PathBuf::from(head_ref);
+    let head_file_path = PathBuf::from("not-git/refs/heads").join(head_file_path);
     let head_file_path = match base_path {
         Some(path) => path.join(head_file_path),
         None => head_file_path,
