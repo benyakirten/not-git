@@ -47,7 +47,7 @@ fn update_refs_create_branch_if_not_exists() {
     update_refs::update_refs(Some(&path.0), config).unwrap();
 
     let ref_path = path.join(&"not-git/refs/heads/abc/def/ghi");
-    let got_commit_hash = fs::read_to_string(&ref_path).unwrap();
+    let got_commit_hash = fs::read_to_string(ref_path).unwrap();
     assert_eq!(got_commit_hash, commit_hash.full_hash());
 }
 
