@@ -48,7 +48,7 @@ impl GitRef {
 
 pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_clone_config(args)?;
-    let (head_ref, objects) = perform_clone(config)?;
+    let (head_ref, objects) = perform_clone(None, config)?;
 
     println!(
         "Cloned {} objects into repository successfully.",
@@ -62,6 +62,7 @@ pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
 }
 
 pub fn perform_clone(
+    base_path: Option<&PathBuf>,
     config: CloneConfig,
 ) -> Result<(GitRef, Vec<packfile::PackfileObject>), anyhow::Error> {
     prep_temp_dir()?;
@@ -71,7 +72,7 @@ pub fn perform_clone(
         None => PathBuf::from("clone_folder"),
     };
 
-    let clone_result = clone(config);
+    let clone_result = clone(base_path, config);
     env::set_current_dir("..")?;
 
     let (head_ref, objects) = match clone_result {
@@ -109,6 +110,7 @@ fn prep_temp_dir() -> Result<(), anyhow::Error> {
 }
 
 pub fn clone(
+    base_path: Option<&PathBuf>,
     config: CloneConfig,
 ) -> Result<(GitRef, Vec<packfile::PackfileObject>), anyhow::Error> {
     // https://www.git-scm.com/docs/http-protocol
@@ -154,10 +156,10 @@ pub fn clone(
     let commit_hash = ObjectHash::new(&head_ref.commit_hash.full_hash())?;
     let path = PathBuf::from(head_path);
     let update_ref_config = update_refs::UpdateRefsConfig::new(commit_hash, path);
-    update_refs::update_refs(update_ref_config)?;
+    update_refs::update_refs(base_path, update_ref_config)?;
 
     let checkout_config = checkout::CheckoutConfig::new(get_branch_name(&head_ref.branch));
-    checkout::checkout_branch(&checkout_config)?;
+    checkout::checkout_branch(base_path, &checkout_config)?;
 
     Ok((head_ref, objects))
 }

@@ -33,7 +33,7 @@ pub fn branch_command(args: &[String]) -> Result<(), anyhow::Error> {
             println!("Deleted branch {:?} (was {})", results.path, results.hash);
             Ok(())
         }
-        BranchConfig::Create(branch_name) => create_branch(branch_name),
+        BranchConfig::Create(branch_name) => create_branch(None, branch_name),
     }
 }
 
@@ -64,7 +64,7 @@ fn delete_branch(branch_name: String) -> Result<DeleteBranchResults, anyhow::Err
 }
 
 // TODO: Does this functionality need to be revisited?
-fn create_branch(branch_name: String) -> Result<(), anyhow::Error> {
+fn create_branch(base_path: Option<&PathBuf>, branch_name: String) -> Result<(), anyhow::Error> {
     let path: PathBuf = ["not-git", "refs", "heads", &branch_name].iter().collect();
     if path.exists() {
         return Err(anyhow::anyhow!("Branch {} already exists", branch_name));
@@ -84,7 +84,7 @@ fn create_branch(branch_name: String) -> Result<(), anyhow::Error> {
     };
 
     let config = update_refs::UpdateRefsConfig::new(head_commit, PathBuf::from(branch_name));
-    update_refs::update_refs(config)?;
+    update_refs::update_refs(base_path, config)?;
 
     Ok(())
 }

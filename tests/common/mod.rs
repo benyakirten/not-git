@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::Once;
 use std::{fs, io::Read};
 
 use flate2::bufread::ZlibEncoder;
@@ -8,7 +9,16 @@ use sha1::{Digest, Sha1};
 
 // TODO: Figure out if we can make this into a macro
 
+static CLEAR_TEST_DIR: Once = Once::new();
+
 pub fn setup() -> PathBuf {
+    CLEAR_TEST_DIR.call_once(|| {
+        let test_dir = PathBuf::from(".test");
+        if test_dir.exists() {
+            fs::remove_dir_all(&test_dir).unwrap();
+        }
+    });
+
     let test_dir_name = uuid::Uuid::new_v4().to_string();
     let test_dir = [".test", &test_dir_name].iter().collect::<PathBuf>();
     if !test_dir.exists() {
@@ -22,7 +32,11 @@ pub fn cleanup(path: PathBuf) {
     fs::remove_dir_all(path).unwrap();
 }
 
-pub fn write_object(path: &PathBuf, object_type: &ObjectType, contents: &mut [u8]) -> ObjectHash {
+pub fn write_object(
+    path: &PathBuf,
+    object_type: &ObjectType,
+    contents: &mut Vec<u8>,
+) -> ObjectHash {
     let mut hasher = Sha1::new();
     hasher.update(&contents);
     let hash: String = hasher.finalize().encode_hex();
@@ -40,6 +54,7 @@ pub fn write_object(path: &PathBuf, object_type: &ObjectType, contents: &mut [u8
     encoder.read_to_end(&mut encoded_contents).unwrap();
 
     let object_path = path.join(hash.path());
+
     fs::create_dir_all(object_path.parent().unwrap()).unwrap();
     fs::write(object_path, encoded_contents).unwrap();
 

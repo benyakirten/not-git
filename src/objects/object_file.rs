@@ -41,8 +41,12 @@ impl ObjectFile {
     /// `<file_type> <size>\0`. If the file type is a tree, it requires to be parsed
     /// further, which is handled by the `ls_tree` commands.
     /// TODO: Examples + Links to documentation
-    pub fn new(hash: &ObjectHash) -> Result<Self, anyhow::Error> {
-        let path: PathBuf = hash.into();
+    pub fn new(base_path: Option<&PathBuf>, hash: &ObjectHash) -> Result<Self, anyhow::Error> {
+        let path: PathBuf = match base_path {
+            Some(base_path) => base_path.join(hash.path()),
+            None => hash.into(),
+        };
+
         let contents = decode_file(path).context("Decoding file from hash")?;
 
         let (header, body) =
@@ -73,6 +77,6 @@ impl TryFrom<&ObjectHash> for ObjectFile {
     type Error = anyhow::Error;
 
     fn try_from(value: &ObjectHash) -> Result<Self, Self::Error> {
-        ObjectFile::new(value)
+        ObjectFile::new(None, value)
     }
 }

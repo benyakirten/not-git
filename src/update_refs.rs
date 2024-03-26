@@ -26,8 +26,11 @@ impl UpdateRefsConfig {
     }
 }
 
-pub fn update_refs(config: UpdateRefsConfig) -> Result<(), anyhow::Error> {
-    validate_hash_as_commit(config.hash())?;
+pub fn update_refs(
+    base_path: Option<&PathBuf>,
+    config: UpdateRefsConfig,
+) -> Result<(), anyhow::Error> {
+    validate_hash_as_commit(base_path, config.hash())?;
 
     let path = config.path();
     if let Some(parent) = path.parent() {
@@ -39,8 +42,11 @@ pub fn update_refs(config: UpdateRefsConfig) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-fn validate_hash_as_commit(hash: &ObjectHash) -> Result<(), anyhow::Error> {
-    match ObjectFile::new(hash)? {
+fn validate_hash_as_commit(
+    base_path: Option<&PathBuf>,
+    hash: &ObjectHash,
+) -> Result<(), anyhow::Error> {
+    match ObjectFile::new(base_path, hash)? {
         ObjectFile::Tree(_) => Err(anyhow::anyhow!("Expected commit object")),
         ObjectFile::Other(object_contents) => match object_contents.object_type {
             ObjectType::Commit => Ok(()),
