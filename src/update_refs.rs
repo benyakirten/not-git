@@ -4,13 +4,13 @@ use std::path::PathBuf;
 use crate::objects::{ObjectFile, ObjectHash, ObjectType};
 
 #[derive(Debug)]
-pub struct UpdateRefsConfig {
-    commit_hash: ObjectHash,
-    path: PathBuf,
+pub struct UpdateRefsConfig<'a> {
+    commit_hash: &'a ObjectHash,
+    path: &'a PathBuf,
 }
 
-impl UpdateRefsConfig {
-    pub fn new(commit_hash: ObjectHash, path: PathBuf) -> Self {
+impl<'a> UpdateRefsConfig<'a> {
+    pub fn new(commit_hash: &'a ObjectHash, path: &'a PathBuf) -> Self {
         Self { commit_hash, path }
     }
 
@@ -32,7 +32,11 @@ pub fn update_refs(
 ) -> Result<(), anyhow::Error> {
     validate_hash_as_commit(base_path, config.hash())?;
 
-    let path = config.path();
+    let path = match base_path {
+        Some(base_path) => base_path.join(config.path()),
+        None => config.path(),
+    };
+
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }

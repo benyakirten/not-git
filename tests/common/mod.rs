@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::{fs, io::Read};
 
@@ -86,4 +87,35 @@ pub fn write_tree(path: &TestPath, tree: Vec<TreeObject>) -> ObjectHash {
     }
 
     write_object(path, &ObjectType::Tree, &mut tree_contents)
+}
+
+#[allow(dead_code)]
+pub fn write_commit(
+    path: &TestPath,
+    tree_hash: &ObjectHash,
+    parent_hash: Option<&ObjectHash>,
+    message: &str,
+) -> ObjectHash {
+    let mut commit_contents = vec![];
+    writeln!(&mut commit_contents, "tree {}", tree_hash.full_hash()).unwrap();
+
+    if let Some(parent_hash) = parent_hash {
+        writeln!(&mut commit_contents, "parent {}", parent_hash.full_hash()).unwrap();
+    }
+
+    writeln!(
+        &mut commit_contents,
+        "author Ben Horowitz <benyakir.horowitz@gmail.com>"
+    )
+    .unwrap();
+
+    writeln!(
+        &mut commit_contents,
+        "committer Ben Horowitz <benyakir.horowitz@gmail.com>"
+    )
+    .unwrap();
+
+    writeln!(&mut commit_contents, "{}", message).unwrap();
+
+    write_object(path, &ObjectType::Commit, &mut commit_contents)
 }

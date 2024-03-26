@@ -29,13 +29,13 @@ pub fn commit_tree_command(args: &[String]) -> Result<(), anyhow::Error> {
 }
 
 pub fn create_commit(config: CommitTreeConfig) -> Result<ObjectHash, anyhow::Error> {
-    let mut contents = create_file_contents(config)?;
+    let mut contents = create_commit_contents(config)?;
     let hash = hash_object::hash_and_write_object(None, &ObjectType::Commit, &mut contents)?;
 
     Ok(hash)
 }
 
-fn create_file_contents(config: CommitTreeConfig) -> Result<Vec<u8>, anyhow::Error> {
+fn create_commit_contents(config: CommitTreeConfig) -> Result<Vec<u8>, anyhow::Error> {
     let mut contents = Vec::new();
     writeln!(&mut contents, "tree {}", config.tree_hash.full_hash())?;
 
@@ -45,7 +45,7 @@ fn create_file_contents(config: CommitTreeConfig) -> Result<Vec<u8>, anyhow::Err
 
     writeln!(
         &mut contents,
-        "author Ben Horowitz >benyakir.horowitz@gmail.com>",
+        "author Ben Horowitz <benyakir.horowitz@gmail.com>",
     )?;
     writeln!(
         &mut contents,

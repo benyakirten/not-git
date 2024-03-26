@@ -83,7 +83,8 @@ fn create_branch(base_path: Option<&PathBuf>, branch_name: String) -> Result<(),
         ObjectHash::new(&head_commit)?
     };
 
-    let config = update_refs::UpdateRefsConfig::new(head_commit, PathBuf::from(branch_name));
+    let update_path = PathBuf::from(branch_name);
+    let config = update_refs::UpdateRefsConfig::new(&head_commit, &update_path);
     update_refs::update_refs(base_path, config)?;
 
     Ok(())

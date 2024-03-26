@@ -154,7 +154,7 @@ pub fn clone(
     // Requires the commit to already be written to a file.
     let commit_hash = ObjectHash::new(&head_ref.commit_hash.full_hash())?;
     let path = PathBuf::from(head_path);
-    let update_ref_config = update_refs::UpdateRefsConfig::new(commit_hash, path);
+    let update_ref_config = update_refs::UpdateRefsConfig::new(&commit_hash, &path);
     update_refs::update_refs(base_path, update_ref_config)?;
 
     let checkout_config = checkout::CheckoutConfig::new(get_branch_name(&head_ref.branch));
