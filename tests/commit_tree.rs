@@ -1,5 +1,5 @@
 use not_git::commit_tree;
-use not_git::objects::{ObjectFile, ObjectHash, ObjectType, TreeObject};
+use not_git::objects::{ObjectFile, ObjectHash, ObjectType};
 
 mod common;
 
@@ -16,17 +16,17 @@ fn commit_tree_error_if_tree_hash_invalid() {
 }
 
 #[test]
-fn commit_tree_error_if_parent_hash_present_but_invalid() {
+fn commit_tree_error_if_parent_hash_present_but_not_valid_commit() {
     let path = common::TestPath::new();
 
-    let tree_hash = create_valid_tree_hash(&path);
+    let tree_hash = common::create_valid_tree_hash(&path);
     let parent_tree_hash = "0123456789abcdef0123456789abcdef01234567";
     let parent_tree_hash = ObjectHash::new(parent_tree_hash).unwrap();
 
     let commit_config = commit_tree::CommitTreeConfig::new(
         &tree_hash,
         "message".to_string(),
-        Some(parent_tree_hash),
+        Some(parent_tree_hash.clone()),
     );
 
     let result = commit_tree::create_commit(Some(&path.0), commit_config);
@@ -37,7 +37,7 @@ fn commit_tree_error_if_parent_hash_present_but_invalid() {
 fn commit_tree_no_parent_if_no_parent_hash() {
     let path = common::TestPath::new();
 
-    let tree_hash = create_valid_tree_hash(&path);
+    let tree_hash = common::create_valid_tree_hash(&path);
     let commit_config =
         commit_tree::CommitTreeConfig::new(&tree_hash, "test message".to_string(), None);
 
@@ -75,17 +75,19 @@ fn commit_tree_no_parent_if_no_parent_hash() {
 fn commit_tree_has_parent_if_valid_parent_hash() {
     let path = common::TestPath::new();
 
-    let tree_hash = create_valid_tree_hash(&path);
-    let parent_tree_hash = common::write_tree(&path, vec![]);
+    let tree_hash = common::create_valid_tree_hash(&path);
+
+    let parent_config =
+        commit_tree::CommitTreeConfig::new(&tree_hash, "test message".to_string(), None);
+    let parent_hash = commit_tree::create_commit(Some(&path.0), parent_config).unwrap();
 
     let commit_config = commit_tree::CommitTreeConfig::new(
         &tree_hash,
         "test message".to_string(),
-        Some(parent_tree_hash.clone()),
+        Some(parent_hash.clone()),
     );
-
     let got = commit_tree::create_commit(Some(&path.0), commit_config).unwrap();
-    assert_eq!(got.full_hash(), "fae075ab36729e330ea06385bfb4b0aa2e47d202");
+    assert_eq!(got.full_hash(), "f4b447a8e0b6cad54065e50839b7286e11008b82");
 
     let object_file = ObjectFile::new(Some(&path.0), &got).unwrap();
     let object_file = match object_file {
@@ -102,7 +104,7 @@ fn commit_tree_has_parent_if_valid_parent_hash() {
     assert_eq!(tree, format!("tree {}", tree_hash.full_hash()));
 
     let parent = lines.next().unwrap();
-    assert_eq!(parent, format!("parent {}", parent_tree_hash.full_hash()));
+    assert_eq!(parent, format!("parent {}", parent_hash.full_hash()));
 
     let author = lines.next().unwrap();
     assert_eq!(author, "author Ben Horowitz <benyakir.horowitz@gmail.com>");
@@ -115,23 +117,4 @@ fn commit_tree_has_parent_if_valid_parent_hash() {
 
     let message = lines.next().unwrap();
     assert_eq!(message, "test message");
-}
-
-fn create_valid_tree_hash(path: &common::TestPath) -> ObjectHash {
-    let mut contents_1 = b"Test 1".to_vec();
-    let object_hash_1 = common::write_object(&path, &ObjectType::Blob, &mut contents_1);
-
-    let mut contents_2 = b"Test 2".to_vec();
-    let object_hash_2 = common::write_object(&path, &ObjectType::Blob, &mut contents_2);
-
-    let mut contents_3 = b"Test 1".to_vec();
-    let object_hash_3 = common::write_object(&path, &ObjectType::Tree, &mut contents_3);
-
-    let tree_objects: Vec<TreeObject> = vec![
-        TreeObject::new(ObjectType::Blob, "file1".to_string(), object_hash_1.clone()),
-        TreeObject::new(ObjectType::Blob, "file2".to_string(), object_hash_2.clone()),
-        TreeObject::new(ObjectType::Tree, "tree1".to_string(), object_hash_3.clone()),
-    ];
-
-    common::write_tree(&path, tree_objects)
 }

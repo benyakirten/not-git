@@ -120,3 +120,23 @@ pub fn write_commit(
 
     write_object(path, &ObjectType::Commit, &mut commit_contents)
 }
+
+#[allow(dead_code)]
+pub fn create_valid_tree_hash(path: &TestPath) -> ObjectHash {
+    let mut contents_1 = b"Test 1".to_vec();
+    let object_hash_1 = write_object(&path, &ObjectType::Blob, &mut contents_1);
+
+    let mut contents_2 = b"Test 2".to_vec();
+    let object_hash_2 = write_object(&path, &ObjectType::Blob, &mut contents_2);
+
+    let mut contents_3 = b"Test 1".to_vec();
+    let object_hash_3 = write_object(&path, &ObjectType::Tree, &mut contents_3);
+
+    let tree_objects: Vec<TreeObject> = vec![
+        TreeObject::new(ObjectType::Blob, "file1".to_string(), object_hash_1.clone()),
+        TreeObject::new(ObjectType::Blob, "file2".to_string(), object_hash_2.clone()),
+        TreeObject::new(ObjectType::Tree, "tree1".to_string(), object_hash_3.clone()),
+    ];
+
+    write_tree(&path, tree_objects)
+}

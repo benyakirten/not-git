@@ -44,7 +44,7 @@ fn create_commit_contents(
     writeln!(&mut contents, "tree {}", config.tree_hash.full_hash())?;
 
     if let Some(parent_hash) = config.parent_hash {
-        validate_tree_hash(base_path, &parent_hash)?;
+        validate_commit_hash(base_path, &parent_hash)?;
         writeln!(&mut contents, "parent {}", parent_hash.full_hash())?;
     }
 
@@ -68,5 +68,16 @@ fn validate_tree_hash(
     match object_file {
         ObjectFile::Tree(_) => Ok(()),
         _ => Err(anyhow::anyhow!("Expected tree object")),
+    }
+}
+
+fn validate_commit_hash(
+    base_path: Option<&PathBuf>,
+    commit_hash: &ObjectHash,
+) -> Result<(), anyhow::Error> {
+    let object_file = ObjectFile::new(base_path, commit_hash)?;
+    match object_file {
+        ObjectFile::Other(commit) if commit.object_type == ObjectType::Commit => Ok(()),
+        _ => Err(anyhow::anyhow!("Expected commit object")),
     }
 }
