@@ -1,5 +1,7 @@
 use std::fs;
 
+use not_git::init;
+
 mod common;
 
 #[test]
@@ -15,8 +17,8 @@ fn create_repo_init() {
     assert!(!packed_refs_file.exists());
     assert!(!objects_dir.exists());
 
-    let config = not_git::init::InitConfig::new(branch_name, path.to_str());
-    not_git::init::create_directories(config).unwrap();
+    let config = init::InitConfig::new(branch_name, path.to_str());
+    init::create_directories(config).unwrap();
 
     assert!(head_file.exists());
     assert!(packed_refs_file.exists());

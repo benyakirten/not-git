@@ -41,8 +41,8 @@ pub fn commit(base_path: Option<&PathBuf>, config: CommitConfig) -> Result<(), a
     let tree_hash = write_tree::write_tree(None)?;
 
     let commit_tree_config =
-        commit_tree::CommitTreeConfig::new(tree_hash, config.message, parent_hash);
-    let commit_hash = commit_tree::create_commit(commit_tree_config)?;
+        commit_tree::CommitTreeConfig::new(&tree_hash, config.message, parent_hash);
+    let commit_hash = commit_tree::create_commit(base_path, commit_tree_config)?;
 
     let update_path = PathBuf::from(head_ref);
     let update_refs_config = update_refs::UpdateRefsConfig::new(&commit_hash, &update_path);

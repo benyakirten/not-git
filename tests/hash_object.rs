@@ -1,4 +1,6 @@
-use not_git::{hash_object, objects::ObjectType, utils::decode_file};
+use not_git::hash_object;
+use not_git::objects::ObjectType;
+use not_git::utils::decode_file;
 
 mod common;
 

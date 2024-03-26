@@ -1,6 +1,7 @@
 use std::{fs, path::PathBuf};
 
-use not_git::{objects::ObjectHash, update_refs};
+use not_git::objects::ObjectHash;
+use not_git::update_refs;
 
 mod common;
 

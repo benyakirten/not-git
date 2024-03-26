@@ -1,10 +1,7 @@
 use std::fs;
 
-use not_git::{
-    init,
-    objects::{ObjectFile, ObjectType},
-    write_tree,
-};
+use not_git::objects::{ObjectFile, ObjectType};
+use not_git::{init, write_tree};
 
 mod common;
 
