@@ -54,7 +54,7 @@ fn write_encoded_object(
 
     let parent = path
         .parent()
-        .ok_or_else(|| anyhow::anyhow!("Invalid path"))?;
+        .ok_or_else(|| anyhow::anyhow!("Unable to find parent path to {:?}", path))?;
     if !parent.exists() {
         fs::create_dir_all(parent)?;
     }
