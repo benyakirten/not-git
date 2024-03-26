@@ -1,5 +1,4 @@
-use std::ops::Deref;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::{fs, io::Read};
 
 use flate2::bufread::ZlibEncoder;
@@ -20,20 +19,15 @@ impl TestPath {
         Self(test_dir)
     }
 
-    pub fn join(&self, path: &str) -> PathBuf {
+    pub fn join<P>(&self, path: &P) -> PathBuf
+    where
+        P: AsRef<Path>,
+    {
         self.0.join(path)
     }
 
     pub fn to_str(&self) -> Option<&str> {
         self.0.to_str()
-    }
-}
-
-impl Deref for TestPath {
-    type Target = PathBuf;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }
 
@@ -44,7 +38,7 @@ impl Drop for TestPath {
 }
 
 pub fn write_object(
-    path: &PathBuf,
+    path: &TestPath,
     object_type: &ObjectType,
     contents: &mut Vec<u8>,
 ) -> ObjectHash {
@@ -64,7 +58,7 @@ pub fn write_object(
     let mut encoder = ZlibEncoder::new(header.as_slice(), flate2::Compression::default());
     encoder.read_to_end(&mut encoded_contents).unwrap();
 
-    let object_path = path.join(hash.path());
+    let object_path = path.join(&hash.path());
 
     fs::create_dir_all(object_path.parent().unwrap()).unwrap();
     fs::write(object_path, encoded_contents).unwrap();
@@ -72,7 +66,7 @@ pub fn write_object(
     hash
 }
 
-pub fn write_tree(path: &PathBuf, tree: Vec<TreeObject>) -> ObjectHash {
+pub fn write_tree(path: &TestPath, tree: Vec<TreeObject>) -> ObjectHash {
     let mut tree_contents = vec![];
     for tree_object in tree {
         let mode_file_name = format!(

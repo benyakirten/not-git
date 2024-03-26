@@ -50,7 +50,7 @@ fn split_header_from_contents_error() {
 
 fn write_head_file(contents: &str) -> TestPath {
     let path = common::TestPath::new();
-    let head = path.join("not-git").join("HEAD");
+    let head = path.join(&"not-git").join("HEAD");
 
     fs::create_dir_all(head.parent().unwrap()).unwrap();
     fs::write(head, contents).unwrap();
@@ -63,7 +63,7 @@ fn get_head_ref_success() {
     let branch_name: &str = "test_branch_name";
     let path = write_head_file(&format!("ref: refs/heads/{}\n", branch_name));
 
-    let head_ref = get_head_ref(Some(&*path)).unwrap();
+    let head_ref = get_head_ref(Some(&path.0)).unwrap();
     assert_eq!(head_ref, branch_name);
 }
 
@@ -87,7 +87,7 @@ fn get_head_ref_error_improper_format() {
 #[test]
 fn decode_file_success() {
     let path = common::TestPath::new();
-    let file_path = path.join("test_file");
+    let file_path = path.join(&"test_file");
 
     let contents = b"these are the file contents".to_vec();
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
@@ -103,7 +103,7 @@ fn decode_file_success() {
 #[test]
 fn decode_file_error_no_file() {
     let path = common::TestPath::new();
-    let file_path = path.join("test_file");
+    let file_path = path.join(&"test_file");
 
     let decoded = not_git::utils::decode_file(file_path);
     assert!(decoded.is_err());
@@ -112,7 +112,7 @@ fn decode_file_error_no_file() {
 #[test]
 fn decode_file_error_not_encoded() {
     let path = common::TestPath::new();
-    let file_path = path.join("test_file");
+    let file_path = path.join(&"test_file");
 
     let contents = b"these are the file contents".to_vec();
     fs::write(&file_path, contents).unwrap();

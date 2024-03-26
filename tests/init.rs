@@ -7,9 +7,9 @@ fn create_repo_init() {
     let branch_name = "test_branch_name";
 
     let path = common::TestPath::new();
-    let head_file = path.join("not-git").join("HEAD");
-    let packed_refs_file = path.join("not-git").join("packed-refs");
-    let objects_dir = path.join("not-git").join("objects");
+    let head_file = path.join(&"not-git").join("HEAD");
+    let packed_refs_file = path.join(&"not-git").join("packed-refs");
+    let objects_dir = path.join(&"not-git").join("objects");
 
     assert!(!head_file.exists());
     assert!(!packed_refs_file.exists());
