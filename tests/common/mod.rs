@@ -12,6 +12,7 @@ use sha1::{Digest, Sha1};
 pub struct TestPath(pub PathBuf);
 
 impl TestPath {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         let test_dir_name = uuid::Uuid::new_v4().to_string();
         let test_dir = [".test", &test_dir_name].iter().collect::<PathBuf>();

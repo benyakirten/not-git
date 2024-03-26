@@ -28,10 +28,10 @@ pub fn hash_object_command(args: &[String]) -> Result<(), anyhow::Error> {
 
 pub fn hash_and_write_object(
     base_path: Option<&PathBuf>,
-    file_type: &ObjectType,
+    object_type: &ObjectType,
     file_contents: &mut Vec<u8>,
 ) -> Result<ObjectHash, anyhow::Error> {
-    let mut header = create_header(file_type, file_contents);
+    let mut header = create_header(object_type, file_contents);
 
     header.append(file_contents);
     let hash = hash_file(&header)?;
