@@ -82,7 +82,7 @@ pub fn create_branch(base_path: Option<&PathBuf>, branch_name: &str) -> Result<(
     }
 
     let head_ref = get_head_ref(base_path)?;
-    let head_path: PathBuf = PathBuf::from("not-git/refs/heads").join(&head_ref);
+    let head_path: PathBuf = PathBuf::from("not-git/refs/heads").join(head_ref);
     let head_path = match base_path {
         Some(base_path) => base_path.join(head_path),
         None => head_path,

@@ -15,14 +15,14 @@ impl<'a> UpdateRefsConfig<'a> {
     }
 
     pub fn hash(&self) -> &ObjectHash {
-        &self.commit_hash
+        self.commit_hash
     }
 
     pub fn path(&self) -> PathBuf {
         ["not-git", "refs", "heads"]
             .iter()
             .collect::<PathBuf>()
-            .join(&self.path)
+            .join(self.path)
     }
 }
 

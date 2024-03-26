@@ -38,7 +38,7 @@ fn create_commit_contents(
     base_path: Option<&PathBuf>,
     config: CommitTreeConfig,
 ) -> Result<Vec<u8>, anyhow::Error> {
-    validate_tree_hash(base_path, &config.tree_hash)?;
+    validate_tree_hash(base_path, config.tree_hash)?;
 
     let mut contents = Vec::new();
     writeln!(&mut contents, "tree {}", config.tree_hash.full_hash())?;
