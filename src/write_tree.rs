@@ -26,14 +26,20 @@ impl TreeFile {
     }
 }
 
-pub fn write_tree(
-    base_path: Option<&PathBuf>,
-    path: Option<&str>,
-) -> Result<ObjectHash, anyhow::Error> {
+pub fn write_tree_command(_: &[String]) -> Result<(), anyhow::Error> {
+    let hash = write_tree(None)?;
+    println!("{}", hash.full_hash());
+
+    Ok(())
+}
+
+pub fn write_tree(path: Option<&str>) -> Result<ObjectHash, anyhow::Error> {
     let path = match path {
         None => env::current_dir()?,
         Some(path) => PathBuf::from(path),
     };
+
+    let base_path = &PathBuf::from(&path);
     let mut root_tree = build_tree_from_path(base_path, path)?;
 
     let hash = hash_tree(base_path, &mut root_tree)?;
@@ -43,7 +49,7 @@ pub fn write_tree(
 }
 
 fn build_tree_from_path(
-    base_path: Option<&PathBuf>,
+    base_path: &PathBuf,
     path: PathBuf,
 ) -> Result<Vec<TreeFile>, anyhow::Error> {
     let mut tree_files: Vec<TreeFile> = Vec::new();
@@ -80,7 +86,7 @@ fn build_tree_from_path(
             TreeFileType::Other(object_type, path) => {
                 let mut file_contents = fs::read(path)?;
                 let hash = hash_object::hash_and_write_object(
-                    base_path,
+                    Some(base_path),
                     &object_type,
                     &mut file_contents,
                 )?;
@@ -96,10 +102,7 @@ fn build_tree_from_path(
     Ok(tree_files)
 }
 
-fn hash_tree(
-    base_path: Option<&PathBuf>,
-    tree_files: &mut Vec<TreeFile>,
-) -> Result<String, anyhow::Error> {
+fn hash_tree(base_path: &PathBuf, tree_files: &mut Vec<TreeFile>) -> Result<String, anyhow::Error> {
     tree_files.sort_by(|a, b| a.file_name.cmp(&b.file_name));
 
     let mut tree_content = Vec::new();
@@ -145,6 +148,7 @@ fn hash_tree(
         tree_content.append(&mut hash_bytes);
     }
 
-    let hash = hash_object::hash_and_write_object(base_path, &ObjectType::Tree, &mut tree_content)?;
+    let hash =
+        hash_object::hash_and_write_object(Some(base_path), &ObjectType::Tree, &mut tree_content)?;
     Ok(hash.full_hash())
 }
