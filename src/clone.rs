@@ -67,19 +67,22 @@ pub fn perform_clone(
 ) -> Result<(GitRef, Vec<packfile::PackfileObject>), anyhow::Error> {
     prep_temp_dir(base_path)?;
 
-    let starting_dir = match config.path {
+    let temp_dir = match base_path {
+        Some(base_path) => base_path.join(TEMP_DIR),
+        None => PathBuf::from(TEMP_DIR),
+    };
+
+    let dest_dir = match config.path {
         Some(path) => PathBuf::from(path),
         None => PathBuf::from("clone_folder"),
     };
 
-    let temp_dir = starting_dir.join(TEMP_DIR);
-
     let dest_dir = match base_path {
-        Some(base_path) => base_path.join(starting_dir),
-        None => starting_dir,
+        Some(base_path) => base_path.join(dest_dir),
+        None => dest_dir,
     };
 
-    let clone_result = clone(&dest_dir, config);
+    let clone_result = clone(&temp_dir, config);
 
     let (head_ref, objects) = match clone_result {
         Ok((head_ref, objects)) => {
