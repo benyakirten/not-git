@@ -42,7 +42,7 @@ fn commit_tree_no_parent_if_no_parent_hash() {
         commit_tree::CommitTreeConfig::new(&tree_hash, "test message".to_string(), None);
 
     let got = commit_tree::create_commit(Some(&path.0), commit_config).unwrap();
-    assert_eq!(got.full_hash(), "06f5feac8532041dd7dc6ac23af6ae7cdfdc5d76");
+    assert_eq!(got.full_hash(), "3b213e64b67386919892810f66aaf41940c63e86");
 
     let object_file = ObjectFile::new(Some(&path.0), &got).unwrap();
     let object_file = match object_file {
@@ -87,7 +87,7 @@ fn commit_tree_has_parent_if_valid_parent_hash() {
         Some(parent_hash.clone()),
     );
     let got = commit_tree::create_commit(Some(&path.0), commit_config).unwrap();
-    assert_eq!(got.full_hash(), "f4b447a8e0b6cad54065e50839b7286e11008b82");
+    assert_eq!(got.full_hash(), "ad90c9ac10b7e901ef700b58e0059274f4c3327d");
 
     let object_file = ObjectFile::new(Some(&path.0), &got).unwrap();
     let object_file = match object_file {

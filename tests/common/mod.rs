@@ -36,11 +36,11 @@ impl TestPath {
     }
 }
 
-// impl Drop for TestPath {
-//     fn drop(&mut self) {
-//         fs::remove_dir_all(&self.0).unwrap();
-//     }
-// }
+impl Drop for TestPath {
+    fn drop(&mut self) {
+        fs::remove_dir_all(&self.0).unwrap();
+    }
+}
 
 #[allow(dead_code)]
 pub fn write_object(
