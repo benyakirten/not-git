@@ -132,17 +132,17 @@ impl PackfileObjectType {
 }
 
 pub fn decode_undeltified_data(
-    base_path: Option<&PathBuf>,
+    base_path: &PathBuf,
     file_type: ObjectType,
     cursor: &mut Cursor<&[u8]>,
 ) -> Result<(Vec<u8>, ObjectHash, ObjectType), anyhow::Error> {
     let data = read_next_zlib_data(cursor)?;
-    let hash = hash_object::hash_and_write_object(base_path, &file_type, &mut data.clone())?;
+    let hash = hash_object::hash_and_write_object(Some(base_path), &file_type, &mut data.clone())?;
     Ok((data, hash, file_type))
 }
 
 pub fn read_obj_offset_data(
-    base_path: Option<&PathBuf>,
+    base_path: &PathBuf,
     objects: &[PackfileObject],
     cursor: &mut Cursor<&[u8]>,
 ) -> Result<(Vec<u8>, ObjectHash, ObjectType), anyhow::Error> {
@@ -170,7 +170,7 @@ pub fn read_obj_offset_data(
 }
 
 pub fn read_obj_ref_data(
-    base_path: Option<&PathBuf>,
+    base_path: &PathBuf,
     objects: &[PackfileObject],
     cursor: &mut Cursor<&[u8]>,
 ) -> Result<(Vec<u8>, ObjectHash, ObjectType), anyhow::Error> {
@@ -195,7 +195,7 @@ pub fn read_obj_ref_data(
 }
 
 fn compile_file_from_deltas(
-    base_path: Option<&PathBuf>,
+    base_path: &PathBuf,
     cursor: &mut Cursor<&[u8]>,
     object: &PackfileObject,
 ) -> Result<(Vec<u8>, ObjectHash, ObjectType), anyhow::Error> {
@@ -203,7 +203,7 @@ fn compile_file_from_deltas(
     let file_contents = apply_deltas(object, delta_data)?;
 
     let hash = hash_object::hash_and_write_object(
-        base_path,
+        Some(base_path),
         &object.file_type,
         &mut file_contents.clone(),
     )?;

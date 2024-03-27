@@ -180,12 +180,15 @@ pub fn create_packfile_header(num_instruction: usize) -> Vec<u8> {
 
 #[allow(dead_code)]
 pub fn render_delta_instruction_bytes(
-    source_length: usize,
-    target_size: usize,
-    instructions: Vec<(DeltaInstruction, Vec<u8>)>,
+    source: Vec<u8>,
+    instructions: Vec<DeltaInstruction>,
 ) -> Vec<u8> {
-    for (instruction, contents) in instructions {
-        let mut instruction_bytes = match instruction {
+    let mut target_size = source.len();
+
+    let mut instruction_bytes: Vec<u8> = vec![];
+
+    for instruction in instructions {
+        let (mut instruction_bytes, size) = match instruction {
             DeltaInstruction::Copy(copy_instruction) => {
                 render_copy_delta_instruction_bytes(copy_instruction)
             }
@@ -197,14 +200,14 @@ pub fn render_delta_instruction_bytes(
             }
         };
 
-        instruction_bytes.extend(contents);
+        target_size += size;
     }
 
     todo!()
 }
 
 #[allow(dead_code)]
-pub fn render_copy_delta_instruction_bytes(instruction: CopyInstruction) -> Vec<u8> {
+pub fn render_copy_delta_instruction_bytes(instruction: CopyInstruction) -> (Vec<u8>, usize) {
     if instruction.offset > 0xFFFFFFFF {
         panic!("Offset must be less than 2^32")
     }
@@ -249,17 +252,17 @@ pub fn render_copy_delta_instruction_bytes(instruction: CopyInstruction) -> Vec<
     let mut final_bytes = vec![leading_byte];
     final_bytes.extend(following_bytes);
 
-    final_bytes
+    (final_bytes, instruction.size)
 }
 
 #[allow(dead_code)]
-pub fn render_insert_delta_instruction_bytes(instruction: InsertInstruction) -> Vec<u8> {
+pub fn render_insert_delta_instruction_bytes(instruction: InsertInstruction) -> (Vec<u8>, usize) {
     // If only copy instructions were this simple
     if instruction.size >= 128 {
         panic!("Size must be less than 128")
     }
 
-    vec![instruction.size]
+    (vec![instruction.size], instruction.size as usize)
 }
 
 pub fn encode_to_zlib(contents: &[u8]) -> Vec<u8> {
