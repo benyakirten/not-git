@@ -139,7 +139,7 @@ pub fn create_valid_tree_hash(path: &TestPath) -> ObjectHash {
         TreeObject::new(ObjectType::Blob, "file3".to_string(), object_hash_3.clone()),
         TreeObject::new(ObjectType::Blob, "file4".to_string(), object_hash_4.clone()),
     ];
-    let child_tree_hash = write_tree(&path, child_tree_objects);
+    let child_tree_hash = write_tree(path, child_tree_objects);
 
     let tree_objects: Vec<TreeObject> = vec![
         TreeObject::new(ObjectType::Blob, "file1".to_string(), object_hash_1.clone()),

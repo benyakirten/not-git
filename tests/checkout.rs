@@ -42,7 +42,7 @@ fn checkout_creates_files_in_new_branch() {
             }
         })
         .collect();
-    entries.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
+    entries.sort_by_key(|entry| entry.file_name());
 
     let file_1 = &entries[0];
     assert_eq!(file_1.file_name(), "file1");
@@ -66,7 +66,7 @@ fn checkout_creates_files_in_new_branch() {
         .unwrap()
         .map(|entry| entry.unwrap())
         .collect();
-    tree_1_entries.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
+    tree_1_entries.sort_by_key(|entry| entry.file_name());
 
     let file_3_1 = &tree_1_entries[0];
     assert_eq!(file_3_1.file_name(), "file3");
