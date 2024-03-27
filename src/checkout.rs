@@ -21,7 +21,11 @@ pub fn checkout_branch(
 ) -> Result<usize, anyhow::Error> {
     let initial_tree = get_initial_tree(base_path, config)?;
 
-    create_tree(base_path, initial_tree, vec![])
+    let starting_path: Vec<&str> = match base_path {
+        Some(base_path) => base_path.iter().map(|p| p.to_str().unwrap()).collect(),
+        None => vec![],
+    };
+    create_tree(base_path, initial_tree, starting_path)
 }
 
 fn create_tree(
@@ -67,6 +71,10 @@ fn get_initial_tree(
     } else {
         ["not-git", "refs", "heads"].iter().collect()
     };
+    let path = match base_path {
+        Some(base_path) => base_path.join(path),
+        None => path,
+    };
 
     let branch_path = path.join(&config.branch_name);
     let commit_hash = fs::read_to_string(branch_path)?;
@@ -78,23 +86,17 @@ fn get_initial_tree(
     ))?;
 
     let readable_contents = match object_file {
-        ObjectFile::Other(object_contents) => match object_contents.object_type {
-            ObjectType::Commit => String::from_utf8(object_contents.contents)
-                .context("Parsing commit object contents as utf8"),
-            _ => return Err(anyhow::anyhow!("Expected commit object")),
-        },
-        ObjectFile::Tree(_) => return Err(anyhow::anyhow!("Expected commit to be a tree object"))?,
+        ObjectFile::Other(object_contents) if object_contents.object_type == ObjectType::Commit => {
+            String::from_utf8(object_contents.contents)
+                .context("Parsing commit object contents as utf8")
+        }
+        _ => return Err(anyhow::anyhow!("Expected commit object"))?,
     }?;
 
     let tree_hash = readable_contents
         .lines()
-        .find(|line| line.starts_with("tree "));
-    if tree_hash.is_none() {
-        return Err(anyhow::anyhow!("No tree hash found in commit"));
-    }
-
-    let tree_hash = tree_hash
-        .unwrap()
+        .find(|line| line.starts_with("tree "))
+        .ok_or_else(|| anyhow::anyhow!("No tree hash found in commit"))?
         .split_ascii_whitespace()
         .last()
         .ok_or_else(|| anyhow::anyhow!("No tree hash found in commit"))?;

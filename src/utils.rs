@@ -10,7 +10,6 @@ use crate::objects::ObjectType;
 /// Utility function for decoding a file that has been encoded with zlib.
 pub fn decode_file(path: PathBuf) -> Result<Vec<u8>, anyhow::Error> {
     let encoded_content = fs::read(path)?;
-
     let mut decoder = ZlibDecoder::new(encoded_content.as_slice());
 
     let mut decoded_vec = vec![];
