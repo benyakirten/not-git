@@ -48,7 +48,11 @@ impl GitRef {
 
 pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_clone_config(args)?;
-    let (head_ref, objects) = perform_clone(None, config)?;
+
+    let test_base_path = &PathBuf::from("cool/there");
+    let test_base_path = Some(test_base_path); // For testing - this should be None
+
+    let (head_ref, objects) = perform_clone(test_base_path, config)?;
 
     println!(
         "Cloned {} objects into repository successfully.",
@@ -115,7 +119,7 @@ fn prep_temp_dir(base_path: Option<&PathBuf>) -> Result<(), anyhow::Error> {
         fs::remove_dir_all(&path).context(format!("Deleting pre-exsting {:?} directory", &path))?;
     }
 
-    fs::create_dir(&path).context(format!("Creating {:?} directory", &path))?;
+    fs::create_dir_all(&path).context(format!("Creating {:?} directory", &path))?;
 
     Ok(())
 }
