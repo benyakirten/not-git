@@ -179,9 +179,13 @@ pub fn create_packfile_header(num_instruction: usize) -> Vec<u8> {
 }
 
 #[allow(dead_code)]
-pub fn render_delta_instruction_bytes(instructions: Vec<(DeltaInstruction, Vec<u8>)>) -> Vec<u8> {
+pub fn render_delta_instruction_bytes(
+    source_length: usize,
+    target_size: usize,
+    instructions: Vec<(DeltaInstruction, Vec<u8>)>,
+) -> Vec<u8> {
     for (instruction, contents) in instructions {
-        let instruction_bytes = match instruction {
+        let mut instruction_bytes = match instruction {
             DeltaInstruction::Copy(copy_instruction) => {
                 render_copy_delta_instruction_bytes(copy_instruction)
             }
@@ -192,6 +196,8 @@ pub fn render_delta_instruction_bytes(instructions: Vec<(DeltaInstruction, Vec<u
                 panic!("DeltaInstruction::End not supported. The cycle will end when the last instruction is reached.")
             }
         };
+
+        instruction_bytes.extend(contents);
     }
 
     todo!()
@@ -260,4 +266,27 @@ pub fn encode_to_zlib(contents: &[u8]) -> Vec<u8> {
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
     encoder.write_all(&contents).unwrap();
     encoder.finish().unwrap()
+}
+
+const MSB_CONTINUE_FLAG: u8 = 0b1000_0000;
+const VARINT_MASK: u8 = !MSB_CONTINUE_FLAG;
+
+#[allow(dead_code)]
+fn encode_varint_le(mut value: usize) -> Vec<u8> {
+    let mut varint = Vec::new();
+
+    while value > 0 {
+        // Get 7 bits fron the right side, shift value right by 7 bits
+        let mut byte = (value & VARINT_MASK as usize) as u8;
+        value >>= 7;
+
+        // If we have more bytes, set the continuation flag
+        if value > 0 {
+            byte |= MSB_CONTINUE_FLAG;
+        }
+
+        varint.push(byte);
+    }
+
+    varint
 }
