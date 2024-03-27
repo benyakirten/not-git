@@ -1,10 +1,12 @@
+use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::{fs, io::Read};
 
-use flate2::bufread::ZlibEncoder;
+use flate2::write::ZlibEncoder;
+use flate2::Compression;
 use hex::ToHex;
 use not_git::objects::{ObjectHash, ObjectType, TreeObject};
+use not_git::packfile::{DeltaInstruction, PackfileObject, PackfileObjectType};
 use sha1::{Digest, Sha1};
 
 // TODO: Figure out why some functions are marked as not being used.
@@ -60,10 +62,7 @@ pub fn write_object(
     let mut contents = contents.to_vec();
     header.append(&mut contents);
 
-    let mut encoded_contents: Vec<u8> = vec![];
-    let mut encoder = ZlibEncoder::new(header.as_slice(), flate2::Compression::default());
-    encoder.read_to_end(&mut encoded_contents).unwrap();
-
+    let encoded_contents = encode_to_zlib(header.as_slice());
     let object_path = path.join(&hash.path());
 
     fs::create_dir_all(object_path.parent().unwrap()).unwrap();
@@ -152,4 +151,33 @@ pub fn create_valid_tree_hash(path: &TestPath) -> ObjectHash {
     ];
 
     write_tree(path, tree_objects)
+}
+
+#[allow(dead_code)]
+pub fn create_packfile_from_objects(instructions: Vec<PackfileObject>) -> Vec<u8> {
+    todo!()
+}
+
+#[allow(dead_code)]
+pub fn create_discover_references_response() {
+    todo!()
+}
+
+#[allow(dead_code)]
+pub fn create_packfile_header(num_instruction: usize) -> Vec<u8> {
+    let mut header = vec![];
+    header.extend(b"PACK");
+    header.extend(&[0, 0, 0, 2]);
+    header.extend(&(num_instruction as u32).to_be_bytes());
+    header
+}
+
+pub fn create_delta_from_instructions(instructions: Vec<DeltaInstruction>) -> Vec<u8> {
+    todo!()
+}
+
+pub fn encode_to_zlib(contents: &[u8]) -> Vec<u8> {
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    encoder.write_all(&contents).unwrap();
+    encoder.finish().unwrap()
 }

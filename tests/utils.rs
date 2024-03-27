@@ -1,9 +1,6 @@
 use std::fs;
-use std::io::Write;
 
 use common::TestPath;
-use flate2::write::ZlibEncoder;
-use flate2::Compression;
 
 use not_git::objects::ObjectType;
 use not_git::utils::{create_header, get_head_ref, split_header_from_contents};
@@ -90,9 +87,7 @@ fn decode_file_success() {
     let file_path = path.join(&"test_file");
 
     let contents = b"these are the file contents".to_vec();
-    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-    encoder.write_all(&contents).unwrap();
-    let encoded_contents = encoder.finish().unwrap();
+    let encoded_contents = common::encode_to_zlib(contents.as_slice());
 
     fs::write(&file_path, encoded_contents).unwrap();
 
