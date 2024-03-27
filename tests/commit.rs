@@ -11,19 +11,19 @@ mod common;
 fn parent_commit_preserved_on_new_commit() {
     let path = common::TestPath::new();
 
-    let init_config = init::InitConfig::new("main", path.to_str());
+    let init_config = init::InitConfig::new("main", path.to_optional_path());
     init::create_directories(init_config).unwrap();
 
     let tree_hash = common::create_valid_tree_hash(&path);
     let parent_config = commit_tree::CommitTreeConfig::new(&tree_hash, "message".to_string(), None);
-    let parent_hash = commit_tree::create_commit(Some(&path.0), parent_config).unwrap();
+    let parent_hash = commit_tree::create_commit(path.to_optional_path(), parent_config).unwrap();
 
     let commit_config = commit_tree::CommitTreeConfig::new(
         &tree_hash,
         "message".to_string(),
         Some(parent_hash.clone()),
     );
-    let commit_hash = commit_tree::create_commit(Some(&path.0), commit_config).unwrap();
+    let commit_hash = commit_tree::create_commit(path.to_optional_path(), commit_config).unwrap();
 
     let head_ref_path = path.join(&"not-git/refs/heads/main");
     fs::create_dir_all(head_ref_path.parent().unwrap()).unwrap();
@@ -56,7 +56,7 @@ fn parent_commit_preserved_on_new_commit() {
 fn commit_successful_without_parent_commit() {
     let path = common::TestPath::new();
 
-    let init_config = init::InitConfig::new("main", path.to_str());
+    let init_config = init::InitConfig::new("main", path.to_optional_path());
     init::create_directories(init_config).unwrap();
 
     let contents_1 = b"Test 1".to_vec();
@@ -92,7 +92,7 @@ fn commit_successful_without_parent_commit() {
     let message = commit_lines.next().unwrap();
     assert_eq!(message, "Test commit");
 
-    let tree_object = ObjectFile::new(Some(&path.0), &tree_commit).unwrap();
+    let tree_object = ObjectFile::new(path.to_optional_path(), &tree_commit).unwrap();
     let tree_object = match tree_object {
         ObjectFile::Other(_) => panic!("Expected tree object"),
         ObjectFile::Tree(tree) => tree,
@@ -112,7 +112,7 @@ fn commit_error_if_head_ref_not_found() {
     let path = common::TestPath::new();
 
     let config = commit::CommitConfig::new("Test commit".to_string());
-    let result = commit::commit(Some(&path.0), config);
+    let result = commit::commit(path.to_optional_path(), config);
     assert!(result.is_err());
 }
 
@@ -126,16 +126,16 @@ fn create_commit_with_files(
     }
 
     let commit_config = commit::CommitConfig::new(message.to_string());
-    commit::commit(Some(&path.0), commit_config).unwrap();
+    commit::commit(path.to_optional_path(), commit_config).unwrap();
 
-    let head_ref = get_head_ref(Some(&path.0)).unwrap();
+    let head_ref = get_head_ref(path.to_optional_path()).unwrap();
     let head_path = PathBuf::from("not-git/refs/heads").join(head_ref);
     let head_path = path.join(&head_path);
 
     let head_hash = fs::read_to_string(head_path).unwrap();
     let head_hash = ObjectHash::new(&head_hash).unwrap();
 
-    let head_commit = ObjectFile::new(Some(&path.0), &head_hash).unwrap();
+    let head_commit = ObjectFile::new(path.to_optional_path(), &head_hash).unwrap();
 
     let head_commit = match head_commit {
         ObjectFile::Other(commit) => commit,

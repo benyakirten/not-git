@@ -11,7 +11,7 @@ mod common;
 fn checkout_creates_files_in_new_branch() {
     let path = common::TestPath::new();
 
-    let init_config = init::InitConfig::new("main", path.to_str());
+    let init_config = init::InitConfig::new("main", path.to_optional_path());
     init::create_directories(init_config).unwrap();
 
     let tree_hash = common::create_valid_tree_hash(&path);
@@ -19,10 +19,10 @@ fn checkout_creates_files_in_new_branch() {
 
     let branch_name = PathBuf::from("abc/def/ghi");
     let update_refs_config = update_refs::UpdateRefsConfig::new(&commit_hash, &branch_name);
-    update_refs::update_refs(Some(&path.0), update_refs_config).unwrap();
+    update_refs::update_refs(path.to_optional_path(), update_refs_config).unwrap();
 
     let checkout_config = checkout::CheckoutConfig::new(branch_name.to_str().unwrap().to_string());
-    checkout::checkout_branch(Some(&path.0), &checkout_config).unwrap();
+    checkout::checkout_branch(path.to_optional_path(), &checkout_config).unwrap();
 
     let mut entries: Vec<DirEntry> = path
         .0

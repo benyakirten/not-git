@@ -10,7 +10,7 @@ fn hash_object_encodes_file_to_zlib_with_header() {
 
     let contents = b"hello world";
     let got_hash = hash_object::hash_and_write_object(
-        Some(&path.0),
+        path.to_optional_path(),
         &ObjectType::Blob,
         &mut contents.to_vec(),
     )

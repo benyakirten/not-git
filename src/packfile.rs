@@ -1,4 +1,5 @@
 use std::io::{Cursor, ErrorKind, Read};
+use std::path::PathBuf;
 
 use anyhow::Context;
 use flate2::bufread::ZlibDecoder;
@@ -131,15 +132,17 @@ impl PackfileObjectType {
 }
 
 pub fn decode_undeltified_data(
+    base_path: Option<&PathBuf>,
     file_type: ObjectType,
     cursor: &mut Cursor<&[u8]>,
 ) -> Result<(Vec<u8>, ObjectHash, ObjectType), anyhow::Error> {
     let data = read_next_zlib_data(cursor)?;
-    let hash = hash_object::hash_and_write_object(None, &file_type, &mut data.clone())?;
+    let hash = hash_object::hash_and_write_object(base_path, &file_type, &mut data.clone())?;
     Ok((data, hash, file_type))
 }
 
 pub fn read_obj_offset_data(
+    base_path: Option<&PathBuf>,
     objects: &[PackfileObject],
     cursor: &mut Cursor<&[u8]>,
 ) -> Result<(Vec<u8>, ObjectHash, ObjectType), anyhow::Error> {
@@ -163,10 +166,11 @@ pub fn read_obj_offset_data(
         )));
     }
 
-    compile_file_from_deltas(cursor, object.unwrap())
+    compile_file_from_deltas(base_path, cursor, object.unwrap())
 }
 
 pub fn read_obj_ref_data(
+    base_path: Option<&PathBuf>,
     objects: &[PackfileObject],
     cursor: &mut Cursor<&[u8]>,
 ) -> Result<(Vec<u8>, ObjectHash, ObjectType), anyhow::Error> {
@@ -187,18 +191,22 @@ pub fn read_obj_ref_data(
         )));
     }
 
-    compile_file_from_deltas(cursor, object.unwrap())
+    compile_file_from_deltas(base_path, cursor, object.unwrap())
 }
 
 fn compile_file_from_deltas(
+    base_path: Option<&PathBuf>,
     cursor: &mut Cursor<&[u8]>,
     object: &PackfileObject,
 ) -> Result<(Vec<u8>, ObjectHash, ObjectType), anyhow::Error> {
     let delta_data = read_next_zlib_data(cursor)?;
     let file_contents = apply_deltas(object, delta_data)?;
 
-    let hash =
-        hash_object::hash_and_write_object(None, &object.file_type, &mut file_contents.clone())?;
+    let hash = hash_object::hash_and_write_object(
+        base_path,
+        &object.file_type,
+        &mut file_contents.clone(),
+    )?;
 
     Ok((file_contents, hash, object.file_type.clone()))
 }
@@ -244,7 +252,7 @@ fn read_instruction(cursor: &mut Cursor<&[u8]>) -> Result<DeltaInstruction, anyh
     // Test if the most significant bit (first) is 0 or 1 by masking all bits except the first
     // 0 - insertion
     // 1 - copy
-    let instruction: DeltaInstruction = if byte & MSB_MASK == 0 {
+    let instruction = if byte & MSB_MASK == 0 {
         // Get the last 7 bits of the byte
         let size = byte & !MSB_MASK;
         let instruction = InsertInstruction { size };
@@ -291,8 +299,12 @@ fn get_copy_instruction_data(
             // Move the read byte over by 8 bits incrementally
             // because we're reading this in little-endian order
             // e.g. 0b1101_1010 will be read as 0b1011_0110 0b0000_0000
-            // Then we add the the bits to the value
             let byte_value = (byte as usize) << (index * 8);
+
+            // Then we add the the bits to the value
+            // e.g. if we have `0b1011_0110 0b000_000 from the previous
+            // line then we add the new bits 0b1001_0110 then the final value
+            // will be `0b1011_0110 0b1001_0110`
             value |= byte_value;
         }
 

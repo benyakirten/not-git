@@ -17,7 +17,7 @@ fn create_repo_init() {
     assert!(!packed_refs_file.exists());
     assert!(!objects_dir.exists());
 
-    let config = init::InitConfig::new(branch_name, path.to_str());
+    let config = init::InitConfig::new(branch_name, path.to_optional_path());
     init::create_directories(config).unwrap();
 
     assert!(head_file.exists());

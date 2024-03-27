@@ -60,7 +60,7 @@ fn get_head_ref_success() {
     let branch_name: &str = "test_branch_name";
     let path = write_head_file(&format!("ref: refs/heads/{}\n", branch_name));
 
-    let head_ref = get_head_ref(Some(&path.0)).unwrap();
+    let head_ref = get_head_ref(path.to_optional_path()).unwrap();
     assert_eq!(head_ref, branch_name);
 }
 
@@ -68,7 +68,7 @@ fn get_head_ref_success() {
 fn get_head_ref_error_no_file() {
     let path = common::TestPath::new();
 
-    let result = get_head_ref(Some(&path.0));
+    let result = get_head_ref(path.to_optional_path());
     assert!(result.is_err());
 }
 
@@ -77,7 +77,7 @@ fn get_head_ref_error_improper_format() {
     let branch_name: &str = "test_branch_name";
     let path = write_head_file(&format!("refs/heads/{}\n", branch_name));
 
-    let result = get_head_ref(Some(&path.0));
+    let result = get_head_ref(path.to_optional_path());
     assert!(result.is_err());
 }
 

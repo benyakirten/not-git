@@ -6,7 +6,7 @@ use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use hex::ToHex;
 use not_git::objects::{ObjectHash, ObjectType, TreeObject};
-use not_git::packfile::{DeltaInstruction, PackfileObject, PackfileObjectType};
+use not_git::packfile::{CopyInstruction, DeltaInstruction, InsertInstruction, PackfileObject};
 use sha1::{Digest, Sha1};
 
 // TODO: Figure out why some functions are marked as not being used.
@@ -35,6 +35,11 @@ impl TestPath {
     #[allow(dead_code)]
     pub fn to_str(&self) -> Option<&str> {
         self.0.to_str()
+    }
+
+    #[allow(dead_code)]
+    pub fn to_optional_path(&self) -> Option<&PathBuf> {
+        Some(&self.0)
     }
 }
 
@@ -154,7 +159,7 @@ pub fn create_valid_tree_hash(path: &TestPath) -> ObjectHash {
 }
 
 #[allow(dead_code)]
-pub fn create_packfile_from_objects(instructions: Vec<PackfileObject>) -> Vec<u8> {
+pub fn create_packfile_from_objects(_instructions: Vec<PackfileObject>) -> Vec<u8> {
     todo!()
 }
 
@@ -166,14 +171,89 @@ pub fn create_discover_references_response() {
 #[allow(dead_code)]
 pub fn create_packfile_header(num_instruction: usize) -> Vec<u8> {
     let mut header = vec![];
+    header.extend(b"0008NAK\n");
     header.extend(b"PACK");
     header.extend(&[0, 0, 0, 2]);
     header.extend(&(num_instruction as u32).to_be_bytes());
     header
 }
 
-pub fn create_delta_from_instructions(instructions: Vec<DeltaInstruction>) -> Vec<u8> {
+#[allow(dead_code)]
+pub fn render_delta_instruction_bytes(instructions: Vec<(DeltaInstruction, Vec<u8>)>) -> Vec<u8> {
+    for (instruction, contents) in instructions {
+        let instruction_bytes = match instruction {
+            DeltaInstruction::Copy(copy_instruction) => {
+                render_copy_delta_instruction_bytes(copy_instruction)
+            }
+            DeltaInstruction::Insert(insert_instruction) => {
+                render_insert_delta_instruction_bytes(insert_instruction)
+            }
+            _ => {
+                panic!("DeltaInstruction::End not supported. The cycle will end when the last instruction is reached.")
+            }
+        };
+    }
+
     todo!()
+}
+
+#[allow(dead_code)]
+pub fn render_copy_delta_instruction_bytes(instruction: CopyInstruction) -> Vec<u8> {
+    if instruction.offset > 0xFFFFFFFF {
+        panic!("Offset must be less than 2^32")
+    }
+
+    if instruction.size > 0xFFFFFF {
+        panic!("Size must be less than 2^24")
+    }
+
+    let mut following_bytes: Vec<u8> = vec![];
+
+    let mut leading_byte = 0b1000_0000;
+
+    // The order will be:
+    // 1. Instruction byte
+    // 2. Offset bytes
+    // 3. Size bytes
+    // The tricky thing is that the instruction byte's bits minus the most significant bit
+    // are in reverse order. As in 0b1010_1010 means that bytes `0b010` (first three digits minus the MSB)
+    // correspond to the size, and `1010` corresponds to the offset, but then you need to flip the order.
+    // So the offset is still `010`, but the size is now `0101`.`What this means is that the first byte
+    // you read corresponds to the first byte of the offset, the second byte the third byte of the offset
+    // the intermediate byte will be `0b0000_0000`. So if you have the size bytes as `0b1010_1010 0b0101_0101`
+    // then the final value of the offset will be `0b0000_0000 0b1010_1010 0b0000_0000 0b0101_0101`
+    let mut total_bytes = instruction.offset.to_be_bytes().to_vec();
+    let size_bytes = instruction.size.to_be_bytes().to_vec();
+    total_bytes.extend(size_bytes);
+
+    for (index, &byte) in total_bytes.iter().enumerate() {
+        let mut bit_validity: u8 = if byte == 0 {
+            0
+        } else {
+            following_bytes.push(byte);
+            1
+        };
+
+        // Shift the bit to the left based on how far we've progressed through the bytes
+        // As we progress further, we will shift further, meaning that if
+        bit_validity <<= index;
+        leading_byte |= bit_validity;
+    }
+
+    let mut final_bytes = vec![leading_byte];
+    final_bytes.extend(following_bytes);
+
+    final_bytes
+}
+
+#[allow(dead_code)]
+pub fn render_insert_delta_instruction_bytes(instruction: InsertInstruction) -> Vec<u8> {
+    // If only copy instructions were this simple
+    if instruction.size >= 128 {
+        panic!("Size must be less than 128")
+    }
+
+    vec![instruction.size]
 }
 
 pub fn encode_to_zlib(contents: &[u8]) -> Vec<u8> {

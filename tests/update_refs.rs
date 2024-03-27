@@ -25,7 +25,7 @@ fn update_refs_success() {
     let update_path = PathBuf::from("abc/def/ghi");
 
     let config = update_refs::UpdateRefsConfig::new(&new_commit_hash, &update_path);
-    update_refs::update_refs(Some(&path.0), config).unwrap();
+    update_refs::update_refs(path.to_optional_path(), config).unwrap();
 
     let got_commit_hash = fs::read_to_string(&ref_path).unwrap();
     assert_eq!(got_commit_hash, new_commit_hash.full_hash());
@@ -44,7 +44,7 @@ fn update_refs_create_branch_if_not_exists() {
     let update_path = PathBuf::from("abc/def/ghi");
 
     let config = update_refs::UpdateRefsConfig::new(&commit_hash, &update_path);
-    update_refs::update_refs(Some(&path.0), config).unwrap();
+    update_refs::update_refs(path.to_optional_path(), config).unwrap();
 
     let ref_path = path.join(&"not-git/refs/heads/abc/def/ghi");
     let got_commit_hash = fs::read_to_string(ref_path).unwrap();
@@ -62,7 +62,7 @@ fn update_refs_failure_not_commit_hash() {
     let update_path = PathBuf::from("abc/def/ghi");
 
     let config = update_refs::UpdateRefsConfig::new(&commit_hash, &update_path);
-    let update_refs_result = update_refs::update_refs(Some(&path.0), config);
+    let update_refs_result = update_refs::update_refs(path.to_optional_path(), config);
 
     assert!(update_refs_result.is_err());
 }

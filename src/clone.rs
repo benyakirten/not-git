@@ -145,10 +145,10 @@ pub fn clone(
         None => head_ref.branch.as_str(),
     };
 
-    let init_config = init::InitConfig::new(head_path, None);
+    let init_config = init::InitConfig::new(head_path, base_path);
     init::create_directories(init_config)?;
 
-    let objects = download_commit(&client, &config.url, &head_ref.commit_hash)?;
+    let objects = download_commit(base_path, &client, &config.url, &head_ref.commit_hash)?;
 
     // Update HEAD ref
     // Requires the commit to already be written to a file.
@@ -164,6 +164,7 @@ pub fn clone(
 }
 
 pub fn download_commit(
+    base_path: Option<&PathBuf>,
     client: &Client,
     url: &str,
     hash: &ObjectHash,
@@ -180,27 +181,29 @@ pub fn download_commit(
 
         let ((data, file_hash, file_type), size) = match object_type {
             packfile::PackfileObjectType::Commit(size) => (
-                packfile::decode_undeltified_data(ObjectType::Commit, &mut cursor)?,
+                packfile::decode_undeltified_data(base_path, ObjectType::Commit, &mut cursor)?,
                 size,
             ),
             packfile::PackfileObjectType::Tree(size) => (
-                packfile::decode_undeltified_data(ObjectType::Tree, &mut cursor)?,
+                packfile::decode_undeltified_data(base_path, ObjectType::Tree, &mut cursor)?,
                 size,
             ),
             packfile::PackfileObjectType::Blob(size) => (
-                packfile::decode_undeltified_data(ObjectType::Blob, &mut cursor)?,
+                packfile::decode_undeltified_data(base_path, ObjectType::Blob, &mut cursor)?,
                 size,
             ),
             packfile::PackfileObjectType::Tag(size) => (
-                packfile::decode_undeltified_data(ObjectType::Tag, &mut cursor)?,
+                packfile::decode_undeltified_data(base_path, ObjectType::Tag, &mut cursor)?,
                 size,
             ),
-            packfile::PackfileObjectType::OfsDelta(size) => {
-                (packfile::read_obj_offset_data(&objects, &mut cursor)?, size)
-            }
-            packfile::PackfileObjectType::RefDelta(size) => {
-                (packfile::read_obj_ref_data(&objects, &mut cursor)?, size)
-            }
+            packfile::PackfileObjectType::OfsDelta(size) => (
+                packfile::read_obj_offset_data(base_path, &objects, &mut cursor)?,
+                size,
+            ),
+            packfile::PackfileObjectType::RefDelta(size) => (
+                packfile::read_obj_ref_data(base_path, &objects, &mut cursor)?,
+                size,
+            ),
         };
 
         let object = packfile::PackfileObject {

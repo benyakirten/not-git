@@ -11,7 +11,7 @@ fn commit_tree_error_if_tree_hash_invalid() {
     let tree_hash = ObjectHash::new(tree_hash).unwrap();
     let commit_config = commit_tree::CommitTreeConfig::new(&tree_hash, "message".to_string(), None);
 
-    let result = commit_tree::create_commit(Some(&path.0), commit_config);
+    let result = commit_tree::create_commit(path.to_optional_path(), commit_config);
     assert!(result.is_err());
 }
 
@@ -29,7 +29,7 @@ fn commit_tree_error_if_parent_hash_present_but_not_valid_commit() {
         Some(parent_tree_hash.clone()),
     );
 
-    let result = commit_tree::create_commit(Some(&path.0), commit_config);
+    let result = commit_tree::create_commit(path.to_optional_path(), commit_config);
     assert!(result.is_err());
 }
 
@@ -41,10 +41,10 @@ fn commit_tree_no_parent_if_no_parent_hash() {
     let commit_config =
         commit_tree::CommitTreeConfig::new(&tree_hash, "test message".to_string(), None);
 
-    let got = commit_tree::create_commit(Some(&path.0), commit_config).unwrap();
+    let got = commit_tree::create_commit(path.to_optional_path(), commit_config).unwrap();
     assert_eq!(got.full_hash(), "3b213e64b67386919892810f66aaf41940c63e86");
 
-    let object_file = ObjectFile::new(Some(&path.0), &got).unwrap();
+    let object_file = ObjectFile::new(path.to_optional_path(), &got).unwrap();
     let object_file = match object_file {
         ObjectFile::Other(contents) => contents,
         ObjectFile::Tree(_) => panic!("Expected commit object"),
@@ -79,17 +79,17 @@ fn commit_tree_has_parent_if_valid_parent_hash() {
 
     let parent_config =
         commit_tree::CommitTreeConfig::new(&tree_hash, "test message".to_string(), None);
-    let parent_hash = commit_tree::create_commit(Some(&path.0), parent_config).unwrap();
+    let parent_hash = commit_tree::create_commit(path.to_optional_path(), parent_config).unwrap();
 
     let commit_config = commit_tree::CommitTreeConfig::new(
         &tree_hash,
         "test message".to_string(),
         Some(parent_hash.clone()),
     );
-    let got = commit_tree::create_commit(Some(&path.0), commit_config).unwrap();
+    let got = commit_tree::create_commit(path.to_optional_path(), commit_config).unwrap();
     assert_eq!(got.full_hash(), "ad90c9ac10b7e901ef700b58e0059274f4c3327d");
 
-    let object_file = ObjectFile::new(Some(&path.0), &got).unwrap();
+    let object_file = ObjectFile::new(path.to_optional_path(), &got).unwrap();
     let object_file = match object_file {
         ObjectFile::Other(contents) => contents,
         ObjectFile::Tree(_) => panic!("Expected commit object"),
