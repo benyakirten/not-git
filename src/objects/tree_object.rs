@@ -39,6 +39,7 @@ impl TreeObject {
 
 fn read_next_tree_file(cursor: &mut Cursor<&[u8]>) -> Result<Option<TreeObject>, anyhow::Error> {
     let mut mode_file_name = vec![];
+
     match cursor.read_until(0, &mut mode_file_name) {
         Err(e) if e.kind() == ErrorKind::UnexpectedEof => return Ok(None),
         Err(e) => return Err(e.into()),

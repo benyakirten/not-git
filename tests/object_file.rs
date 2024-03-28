@@ -10,7 +10,7 @@ fn parse_blob_file() {
     let mut contents = b"Hello, World!".to_vec();
     let object_hash = common::write_object(&path, &ObjectType::Blob, &mut contents);
 
-    let object_file = ObjectFile::new(Some(&path.0), &object_hash).unwrap();
+    let object_file = ObjectFile::new(path.to_optional_path(), &object_hash).unwrap();
     match object_file {
         ObjectFile::Other(contents) => {
             assert_eq!(contents.size, 13);
@@ -42,7 +42,7 @@ fn parse_object_tree_file() {
 
     let tree_hash = common::write_tree(&path, tree_objects);
 
-    let tree_file = ObjectFile::new(Some(&path.0), &tree_hash).unwrap();
+    let tree_file = ObjectFile::new(path.to_optional_path(), &tree_hash).unwrap();
     match tree_file {
         ObjectFile::Tree(object_contents) => {
             assert_eq!(object_contents.object_type, ObjectType::Tree);
@@ -81,7 +81,7 @@ fn parse_fails_on_file_improper_format() {
     fs::create_dir_all(file_path.parent().unwrap()).unwrap();
     fs::write(&file_path, b"improper format").unwrap();
 
-    let object_file = ObjectFile::new(Some(&path.0), &object_hash);
+    let object_file = ObjectFile::new(path.to_optional_path(), &object_hash);
     assert!(object_file.is_err());
 }
 

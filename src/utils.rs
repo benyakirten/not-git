@@ -1,5 +1,5 @@
 use std::fs;
-use std::io::Read;
+use std::io::{Cursor, Read};
 use std::path::PathBuf;
 
 use anyhow::Context;
@@ -10,7 +10,6 @@ use crate::objects::ObjectType;
 /// Utility function for decoding a file that has been encoded with zlib.
 pub fn decode_file(path: PathBuf) -> Result<Vec<u8>, anyhow::Error> {
     let encoded_content = fs::read(path)?;
-
     let mut decoder = ZlibDecoder::new(encoded_content.as_slice());
 
     let mut decoded_vec = vec![];
@@ -64,4 +63,20 @@ pub fn split_header_from_contents(content: &[u8]) -> Result<(&[u8], &[u8]), anyh
     let header = split_content.next().context("Getting header")?;
     let body = split_content.next().context("Getting body")?;
     Ok((header, body))
+}
+
+pub fn read_next_zlib_data(mut cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, anyhow::Error> {
+    let starting_position = cursor.position();
+    let mut data = vec![];
+
+    // We don't know the size of the compressed blob, so we just read until it gives up.
+    let mut decoder = ZlibDecoder::new(&mut cursor);
+    decoder.read_to_end(&mut data)?;
+
+    // Since we don't know the size of the compressed blob before we read it,
+    // we need to manually move the cursor to the correct position after.
+    let read_bytes = decoder.total_in();
+    cursor.set_position(starting_position + read_bytes);
+
+    Ok(data)
 }

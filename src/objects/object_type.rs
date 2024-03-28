@@ -148,5 +148,7 @@ mod tests {
         assert!(ObjectType::from_str("invalid_type").is_err());
     }
 
-    // `from_entry`` handled in integration tests (tests/object_type) because of need for setup/cleanup
+    // `from_entry`` handled in integration tests (tests/object_type), even though it is functional
+    // because, as far as I know, it is impossible to mock the `std::fs::DirEntry` type, therefore
+    // we need to use the setup/teardown of actual files and directories as is provided in the integration tests.
 }

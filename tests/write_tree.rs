@@ -8,7 +8,7 @@ mod common;
 #[test]
 fn test_write_tree_success() {
     let path = common::TestPath::new();
-    init::create_directories(init::InitConfig::new("main", path.to_str())).unwrap();
+    init::create_directories(init::InitConfig::new("main", path.to_optional_path())).unwrap();
 
     let contents_1 = b"Test 1".to_vec();
     let file_name_1 = "file1".to_string();
@@ -36,7 +36,7 @@ fn test_write_tree_success() {
         "7abecc23db04e758fd76dd97a97901597ced79cf"
     );
 
-    let tree_file = ObjectFile::new(Some(&path.0), &tree_hash).unwrap();
+    let tree_file = ObjectFile::new(path.to_optional_path(), &tree_hash).unwrap();
     match tree_file {
         ObjectFile::Tree(tree) => {
             assert_eq!(tree.object_type, ObjectType::Tree);
@@ -47,7 +47,7 @@ fn test_write_tree_success() {
             assert_eq!(file1.file_name, file_name_1);
 
             let file_hash_1 = &file1.hash;
-            let object_file_1 = ObjectFile::new(Some(&path.0), file_hash_1).unwrap();
+            let object_file_1 = ObjectFile::new(path.to_optional_path(), file_hash_1).unwrap();
             match object_file_1 {
                 ObjectFile::Other(blob) => {
                     assert_eq!(blob.object_type, ObjectType::Blob);
@@ -60,7 +60,7 @@ fn test_write_tree_success() {
             assert_eq!(file2.object_type, ObjectType::Blob);
 
             let file_hash_2 = &file2.hash;
-            let object_file_2 = ObjectFile::new(Some(&path.0), file_hash_2).unwrap();
+            let object_file_2 = ObjectFile::new(path.to_optional_path(), file_hash_2).unwrap();
             match object_file_2 {
                 ObjectFile::Other(blob) => {
                     assert_eq!(blob.object_type, ObjectType::Blob);
@@ -74,7 +74,7 @@ fn test_write_tree_success() {
             assert_eq!(file3.file_name, sub_dir_name);
 
             let sub_dir_hash = &file3.hash;
-            let sub_dir_hash = ObjectFile::new(Some(&path.0), sub_dir_hash).unwrap();
+            let sub_dir_hash = ObjectFile::new(path.to_optional_path(), sub_dir_hash).unwrap();
             match sub_dir_hash {
                 ObjectFile::Tree(sub_tree) => {
                     assert_eq!(sub_tree.object_type, ObjectType::Tree);
@@ -85,7 +85,8 @@ fn test_write_tree_success() {
                     assert_eq!(sub_file.file_name, file_name_3);
 
                     let sub_file_hash = &sub_file.hash;
-                    let object_file_3 = ObjectFile::new(Some(&path.0), sub_file_hash).unwrap();
+                    let object_file_3 =
+                        ObjectFile::new(path.to_optional_path(), sub_file_hash).unwrap();
                     match object_file_3 {
                         ObjectFile::Other(blob) => {
                             assert_eq!(blob.object_type, ObjectType::Blob);

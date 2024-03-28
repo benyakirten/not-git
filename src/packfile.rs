@@ -1,10 +1,11 @@
 use std::io::{Cursor, ErrorKind, Read};
+use std::path::PathBuf;
 
 use anyhow::Context;
-use flate2::bufread::ZlibDecoder;
 
 use crate::hash_object;
 use crate::objects::{ObjectHash, ObjectType};
+use crate::utils::read_next_zlib_data;
 
 const VARINT_ENCODING_BITS: u8 = 7;
 
@@ -38,12 +39,14 @@ pub struct PackfileObject {
     pub file_type: ObjectType,
 }
 
+#[derive(Debug)]
 pub enum DeltaInstruction {
     Copy(CopyInstruction),
     Insert(InsertInstruction),
     End,
 }
 
+#[derive(Debug)]
 pub struct CopyInstruction {
     // Offset of the first byte to copy.
     pub offset: usize,
@@ -51,6 +54,7 @@ pub struct CopyInstruction {
     pub size: usize,
 }
 
+#[derive(Debug)]
 pub struct InsertInstruction {
     // Number of bytes to copy from delta data to the target data
     pub size: u8,
@@ -131,15 +135,17 @@ impl PackfileObjectType {
 }
 
 pub fn decode_undeltified_data(
+    base_path: &PathBuf,
     file_type: ObjectType,
     cursor: &mut Cursor<&[u8]>,
 ) -> Result<(Vec<u8>, ObjectHash, ObjectType), anyhow::Error> {
     let data = read_next_zlib_data(cursor)?;
-    let hash = hash_object::hash_and_write_object(None, &file_type, &mut data.clone())?;
+    let hash = hash_object::hash_and_write_object(Some(base_path), &file_type, &mut data.clone())?;
     Ok((data, hash, file_type))
 }
 
 pub fn read_obj_offset_data(
+    base_path: &PathBuf,
     objects: &[PackfileObject],
     cursor: &mut Cursor<&[u8]>,
 ) -> Result<(Vec<u8>, ObjectHash, ObjectType), anyhow::Error> {
@@ -150,23 +156,23 @@ pub fn read_obj_offset_data(
     let current_position = cursor.position();
 
     // This will move the cursor ahead by the number of bytes in the varint
-    let negative_offset = read_varint_bytes(cursor)?;
+    let negative_offset = read_varint_bytes_le(cursor)?;
     let position = current_position - negative_offset as u64;
     let object = objects
         .iter()
-        .find(|object| object.position as u64 == position);
+        .find(|object| object.position as u64 == position)
+        .ok_or_else(|| {
+            anyhow::anyhow!(format!(
+                "Unable to find object with position {} in packfile",
+                position
+            ))
+        })?;
 
-    if object.is_none() {
-        return Err(anyhow::anyhow!(format!(
-            "Unable to find object with position {} in packfile",
-            position
-        )));
-    }
-
-    compile_file_from_deltas(cursor, object.unwrap())
+    compile_file_from_deltas(base_path, cursor, object)
 }
 
 pub fn read_obj_ref_data(
+    base_path: &PathBuf,
     objects: &[PackfileObject],
     cursor: &mut Cursor<&[u8]>,
 ) -> Result<(Vec<u8>, ObjectHash, ObjectType), anyhow::Error> {
@@ -178,27 +184,32 @@ pub fn read_obj_ref_data(
 
     let object = objects
         .iter()
-        .find(|object| object.file_hash.full_hash() == hash.full_hash());
+        .find(|object| object.file_hash.full_hash() == hash.full_hash())
+        .ok_or_else(|| {
+            anyhow::anyhow!(format!(
+                "Unable to find object with hash {} in packfile",
+                hash.full_hash()
+            ))
+        })?;
 
-    if object.is_none() {
-        return Err(anyhow::anyhow!(format!(
-            "Unable to find object with hash {} in packfile",
-            hash.full_hash()
-        )));
-    }
+    println!("OBJECT: {:?}", object);
 
-    compile_file_from_deltas(cursor, object.unwrap())
+    compile_file_from_deltas(base_path, cursor, object)
 }
 
 fn compile_file_from_deltas(
+    base_path: &PathBuf,
     cursor: &mut Cursor<&[u8]>,
     object: &PackfileObject,
 ) -> Result<(Vec<u8>, ObjectHash, ObjectType), anyhow::Error> {
     let delta_data = read_next_zlib_data(cursor)?;
     let file_contents = apply_deltas(object, delta_data)?;
 
-    let hash =
-        hash_object::hash_and_write_object(None, &object.file_type, &mut file_contents.clone())?;
+    let hash = hash_object::hash_and_write_object(
+        Some(base_path),
+        &object.file_type,
+        &mut file_contents.clone(),
+    )?;
 
     Ok((file_contents, hash, object.file_type.clone()))
 }
@@ -206,13 +217,16 @@ fn compile_file_from_deltas(
 fn apply_deltas(target: &PackfileObject, delta_data: Vec<u8>) -> Result<Vec<u8>, anyhow::Error> {
     let mut cursor = Cursor::new(delta_data.as_slice());
 
-    let source_length = read_varint_bytes(&mut cursor)?;
-    let final_length = read_varint_bytes(&mut cursor)?;
+    let source_length = read_varint_bytes_le(&mut cursor)?;
+    let final_length = read_varint_bytes_le(&mut cursor)?;
 
     let mut data = Vec::with_capacity(final_length);
 
     if source_length != target.size {
-        // TODO: Log inconsistent sizes
+        eprintln!(
+            "Warning: source length {} does not match target length {} in deltafied object",
+            source_length, target.size
+        )
     }
 
     loop {
@@ -236,7 +250,7 @@ fn apply_deltas(target: &PackfileObject, delta_data: Vec<u8>) -> Result<Vec<u8>,
 fn read_instruction(cursor: &mut Cursor<&[u8]>) -> Result<DeltaInstruction, anyhow::Error> {
     let mut byte = match read_byte(cursor) {
         Ok(byte) => byte,
-        // We have finihed reading instructions when we get to the EOF
+        // We have finished reading instructions when we get to the EOF
         Err(e) if e.kind() == ErrorKind::UnexpectedEof => return Ok(DeltaInstruction::End),
         Err(e) => return Err(e.into()),
     };
@@ -244,7 +258,7 @@ fn read_instruction(cursor: &mut Cursor<&[u8]>) -> Result<DeltaInstruction, anyh
     // Test if the most significant bit (first) is 0 or 1 by masking all bits except the first
     // 0 - insertion
     // 1 - copy
-    let instruction: DeltaInstruction = if byte & MSB_MASK == 0 {
+    let instruction = if byte & MSB_MASK == 0 {
         // Get the last 7 bits of the byte
         let size = byte & !MSB_MASK;
         let instruction = InsertInstruction { size };
@@ -291,8 +305,12 @@ fn get_copy_instruction_data(
             // Move the read byte over by 8 bits incrementally
             // because we're reading this in little-endian order
             // e.g. 0b1101_1010 will be read as 0b1011_0110 0b0000_0000
-            // Then we add the the bits to the value
             let byte_value = (byte as usize) << (index * 8);
+
+            // Then we add the the bits to the value
+            // e.g. if we have `0b1011_0110 0b000_000 from the previous
+            // line then we add the new bits 0b1001_0110 then the final value
+            // will be `0b1011_0110 0b1001_0110`
             value |= byte_value;
         }
 
@@ -329,22 +347,6 @@ fn apply_insert_instruction(
     Ok(data)
 }
 
-fn read_next_zlib_data(mut cursor: &mut Cursor<&[u8]>) -> Result<Vec<u8>, anyhow::Error> {
-    let starting_position = cursor.position();
-    let mut data = vec![];
-
-    // We don't know the size of the compressed blob, so we just read until it gives up.
-    let mut decoder = ZlibDecoder::new(&mut cursor);
-    decoder.read_to_end(&mut data)?;
-
-    // Since we don't know the size of the compressed blob before we read it,
-    // we need to manually move the cursor to the correct position after.
-    let read_bytes = decoder.total_in();
-    cursor.set_position(starting_position + read_bytes);
-
-    Ok(data)
-}
-
 /// We need to read the packfile in little-endian order. The first three bits are the object type.
 pub fn read_type_and_length(
     cursor: &mut Cursor<&[u8]>,
@@ -352,7 +354,7 @@ pub fn read_type_and_length(
     // Using a `usize` type limits us to files that are 2^61 bytes in size.
     // I hope whatever future person is passing around files that are 2 exabytes
     // in their git repo doesn't use this code.
-    let value = read_varint_bytes(cursor)?;
+    let value = read_varint_bytes_le(cursor)?;
 
     let object_type = get_object_type_bits(value) as u8;
     let size = get_object_size(value);
@@ -361,7 +363,7 @@ pub fn read_type_and_length(
     Ok(object_type)
 }
 
-/// Given the packfile encoding, the last seven bits are three bits for the
+/// Given the packfile encoding, the last seven bits of the first byte are three bits for the
 /// object type and four bits for the size. We want to remove the three bits
 /// for the object type then get an integer representing the size from
 /// the total size - 7 bits + last 4 bits.
@@ -414,7 +416,7 @@ fn keep_bits(value: usize, bits: u8) -> usize {
 /// We receive a variable-sized encoded value from the packfile. We want to get all the bytes
 /// that represent the type and length of the object. Using a cursor allows us to advance
 /// that distance without keeping track of the current position in the buffer.
-pub fn read_varint_bytes(packfile_reader: &mut Cursor<&[u8]>) -> Result<usize, anyhow::Error> {
+pub fn read_varint_bytes_le(packfile_reader: &mut Cursor<&[u8]>) -> Result<usize, anyhow::Error> {
     let mut value = 0;
     let mut length = 0;
 
@@ -467,4 +469,114 @@ pub fn read_byte(cursor: &mut Cursor<&[u8]>) -> Result<u8, std::io::Error> {
     let mut bytes: [u8; 1] = [0];
     cursor.read_exact(&mut bytes)?;
     Ok(bytes[0])
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{io::Cursor, vec};
+
+    use crate::objects::{ObjectHash, ObjectType};
+
+    use super::{apply_copy_instruction, PackfileObject};
+
+    #[test]
+    fn read_varint_byte_reads_separates_msb_data_and_value() {
+        let bytes = vec![0b0000_0001, 0b1001_0000];
+        let mut cursor = std::io::Cursor::new(bytes.as_slice());
+
+        let (got, more_bytes) = super::read_varint_byte(&mut cursor).unwrap();
+        assert_eq!(got, 0b0000_0001);
+        assert!(!more_bytes);
+
+        let (got, more_bytes) = super::read_varint_byte(&mut cursor).unwrap();
+        assert_eq!(got, 0b0001_0000);
+        assert!(more_bytes);
+    }
+
+    #[test]
+    fn read_varint_bytes_le_reads_a_varint_byte_in_le_order() {
+        let bytes = vec![0b1000_0001, 0b0001_0000];
+        let mut cursor = std::io::Cursor::new(bytes.as_slice());
+
+        let got = super::read_varint_bytes_le(&mut cursor).unwrap();
+        // Read 0b0001 from first byte, then 0b1_0000 from the second byte then reverse them in LE order
+        assert_eq!(got, 0b_1000_0000_0001);
+    }
+
+    #[test]
+    fn keep_bit_gets_bit_from_right() {
+        let value = 0b1111_1010;
+        let bits = 4;
+        let got = super::keep_bits(value, bits);
+        assert_eq!(got, 0b1010);
+    }
+
+    #[test]
+    fn get_object_type_bits() {
+        let value = 0b1110_1010;
+        let got = super::get_object_type_bits(value);
+        assert_eq!(got, 0b110);
+    }
+
+    #[test]
+    fn apply_insert_instruction_reads_bytes_from_cursor() {
+        let data = vec![0b0000_0001, 0b1001_0000];
+        let mut cursor = Cursor::new(data.as_slice());
+
+        let got = super::apply_insert_instruction(&mut cursor, 2).unwrap();
+        assert_eq!(got, vec![0b0000_0001, 0b1001_0000]);
+    }
+
+    #[test]
+    fn apply_insert_instructions_error_if_not_enough_bytes() {
+        let data = vec![0b0000_0001, 0b1001_0000];
+        let mut cursor = Cursor::new(data.as_slice());
+
+        let got = super::apply_insert_instruction(&mut cursor, 3);
+        assert!(got.is_err());
+    }
+
+    #[test]
+    fn apply_copy_instruction_reads_section_from_cursor() {
+        let offset = 2;
+        let size = 3;
+        let data = vec![
+            0b1111_1111,
+            0b1111_1110,
+            0b1111_1101,
+            0b1111_1100,
+            0b1111_1011,
+            0b1111_1010,
+            0b1111_1001,
+        ];
+        let object = PackfileObject {
+            object_type: super::PackfileObjectType::Blob(7),
+            size: 7,
+            data,
+            position: 0,
+            file_hash: ObjectHash::new("0123456789abcdef0123456789abcdef01234567").unwrap(),
+            file_type: ObjectType::Blob,
+        };
+
+        let got = apply_copy_instruction(&object, offset, size).unwrap();
+        assert_eq!(got, vec![0b1111_1101, 0b1111_1100, 0b1111_1011]);
+    }
+
+    #[test]
+    fn apply_copy_instruction_error_if_not_enough_data() {
+        let offset = 2;
+        let size = 3;
+        let data = vec![0b1111_1111];
+        let object = PackfileObject {
+            object_type: super::PackfileObjectType::Blob(7),
+            size: 7,
+            data,
+            position: 0,
+            file_hash: ObjectHash::new("0123456789abcdef0123456789abcdef01234567").unwrap(),
+            file_type: ObjectType::Blob,
+        };
+
+        let got = apply_copy_instruction(&object, offset, size);
+        assert!(got.is_err());
+    }
 }

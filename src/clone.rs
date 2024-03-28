@@ -1,6 +1,6 @@
+use std::fs;
 use std::io::Cursor;
 use std::path::PathBuf;
-use std::{env, fs};
 
 use anyhow::Context;
 use bytes::Bytes;
@@ -9,8 +9,7 @@ use reqwest::blocking::Client;
 use reqwest::header::CONTENT_TYPE;
 
 use crate::objects::{ObjectHash, ObjectType};
-use crate::packfile;
-use crate::{checkout, init, update_refs};
+use crate::{checkout, init, packfile, update_refs};
 
 const TEMP_DIR: &str = ".tmp";
 
@@ -48,7 +47,11 @@ impl GitRef {
 
 pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_clone_config(args)?;
-    let (head_ref, objects) = perform_clone(None, config)?;
+
+    let test_base_path = &PathBuf::from("cool/there");
+    let test_base_path = Some(test_base_path); // For testing - this should be None
+
+    let (head_ref, objects) = perform_clone(test_base_path, config)?;
 
     println!(
         "Cloned {} objects into repository successfully.",
@@ -65,23 +68,32 @@ pub fn perform_clone(
     base_path: Option<&PathBuf>,
     config: CloneConfig,
 ) -> Result<(GitRef, Vec<packfile::PackfileObject>), anyhow::Error> {
-    prep_temp_dir()?;
+    prep_temp_dir(base_path)?;
+
+    let temp_dir = match base_path {
+        Some(base_path) => base_path.join(TEMP_DIR),
+        None => PathBuf::from(TEMP_DIR),
+    };
 
     let dest_dir = match config.path {
         Some(path) => PathBuf::from(path),
         None => PathBuf::from("clone_folder"),
     };
 
-    let clone_result = clone(base_path, config);
-    env::set_current_dir("..")?;
+    let dest_dir = match base_path {
+        Some(base_path) => base_path.join(dest_dir),
+        None => dest_dir,
+    };
+
+    let clone_result = clone(&temp_dir, config);
 
     let (head_ref, objects) = match clone_result {
         Ok((head_ref, objects)) => {
-            fs::rename(TEMP_DIR, dest_dir)?;
+            fs::rename(temp_dir, dest_dir)?;
             (head_ref, objects)
         }
         Err(e) => {
-            fs::remove_dir_all(".tmp")?;
+            fs::remove_dir_all(temp_dir)?;
             return Err(e);
         }
     };
@@ -96,20 +108,23 @@ fn get_branch_name(branch: &str) -> String {
     }
 }
 
-fn prep_temp_dir() -> Result<(), anyhow::Error> {
-    if PathBuf::from(TEMP_DIR).exists() {
-        fs::remove_dir_all(TEMP_DIR)
-            .context(format!("Deleting pre-exsting {} directory", TEMP_DIR))?;
+fn prep_temp_dir(base_path: Option<&PathBuf>) -> Result<(), anyhow::Error> {
+    let path = match base_path {
+        Some(base_path) => base_path.join(TEMP_DIR),
+        None => PathBuf::from(TEMP_DIR),
+    };
+
+    if path.exists() {
+        fs::remove_dir_all(&path).context(format!("Deleting pre-exsting {:?} directory", &path))?;
     }
 
-    fs::create_dir(TEMP_DIR).context(format!("Creating {} directory", TEMP_DIR))?;
-    env::set_current_dir(TEMP_DIR).context(format!("Setting {} as working directory", TEMP_DIR))?;
+    fs::create_dir_all(&path).context(format!("Creating {:?} directory", &path))?;
 
     Ok(())
 }
 
 pub fn clone(
-    base_path: Option<&PathBuf>,
+    base_path: &PathBuf,
     config: CloneConfig,
 ) -> Result<(GitRef, Vec<packfile::PackfileObject>), anyhow::Error> {
     // https://www.git-scm.com/docs/http-protocol
@@ -131,13 +146,8 @@ pub fn clone(
 
     let head_ref = refs.remove(head_ref_index);
 
-    // TODO: Write all files to a temporary directory
+    // All files are written to a temporary directory
     // If successful, move all files and folders over to .git and delete temporary directory
-    // Header will contain the following:
-    // 1. 0008NAK\n - because we have ended negotiation
-    // 2. 4-byte signature which can be stringified to PACK
-    // 3. 4-byte version number - always 2 or 3
-    // 4. 4-byte number of objects
 
     // The whole ref name is ref/heads/{branch_name} - we want the last part
     let head_path = match head_ref.branch.split_once("refs/heads/") {
@@ -145,25 +155,26 @@ pub fn clone(
         None => head_ref.branch.as_str(),
     };
 
-    let init_config = init::InitConfig::new(head_path, None);
+    let init_config = init::InitConfig::new(head_path, Some(base_path));
     init::create_directories(init_config)?;
 
-    let objects = download_commit(&client, &config.url, &head_ref.commit_hash)?;
+    let objects = download_commit(base_path, &client, &config.url, &head_ref.commit_hash)?;
 
     // Update HEAD ref
     // Requires the commit to already be written to a file.
     let commit_hash = ObjectHash::new(&head_ref.commit_hash.full_hash())?;
     let path = PathBuf::from(head_path);
     let update_ref_config = update_refs::UpdateRefsConfig::new(&commit_hash, &path);
-    update_refs::update_refs(base_path, update_ref_config)?;
+    update_refs::update_refs(Some(base_path), update_ref_config)?;
 
     let checkout_config = checkout::CheckoutConfig::new(get_branch_name(&head_ref.branch));
-    checkout::checkout_branch(base_path, &checkout_config)?;
+    checkout::checkout_branch(Some(base_path), &checkout_config)?;
 
     Ok((head_ref, objects))
 }
 
 pub fn download_commit(
+    base_path: &PathBuf,
     client: &Client,
     url: &str,
     hash: &ObjectHash,
@@ -180,27 +191,29 @@ pub fn download_commit(
 
         let ((data, file_hash, file_type), size) = match object_type {
             packfile::PackfileObjectType::Commit(size) => (
-                packfile::decode_undeltified_data(ObjectType::Commit, &mut cursor)?,
+                packfile::decode_undeltified_data(base_path, ObjectType::Commit, &mut cursor)?,
                 size,
             ),
             packfile::PackfileObjectType::Tree(size) => (
-                packfile::decode_undeltified_data(ObjectType::Tree, &mut cursor)?,
+                packfile::decode_undeltified_data(base_path, ObjectType::Tree, &mut cursor)?,
                 size,
             ),
             packfile::PackfileObjectType::Blob(size) => (
-                packfile::decode_undeltified_data(ObjectType::Blob, &mut cursor)?,
+                packfile::decode_undeltified_data(base_path, ObjectType::Blob, &mut cursor)?,
                 size,
             ),
             packfile::PackfileObjectType::Tag(size) => (
-                packfile::decode_undeltified_data(ObjectType::Tag, &mut cursor)?,
+                packfile::decode_undeltified_data(base_path, ObjectType::Tag, &mut cursor)?,
                 size,
             ),
-            packfile::PackfileObjectType::OfsDelta(size) => {
-                (packfile::read_obj_offset_data(&objects, &mut cursor)?, size)
-            }
-            packfile::PackfileObjectType::RefDelta(size) => {
-                (packfile::read_obj_ref_data(&objects, &mut cursor)?, size)
-            }
+            packfile::PackfileObjectType::OfsDelta(size) => (
+                packfile::read_obj_offset_data(base_path, &objects, &mut cursor)?,
+                size,
+            ),
+            packfile::PackfileObjectType::RefDelta(size) => (
+                packfile::read_obj_ref_data(base_path, &objects, &mut cursor)?,
+                size,
+            ),
         };
 
         let object = packfile::PackfileObject {

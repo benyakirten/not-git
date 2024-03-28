@@ -9,9 +9,9 @@ mod common;
 fn delete_branch_fails_if_branch_does_not_exist() {
     let path = common::TestPath::new();
 
-    init::create_directories(init::InitConfig::new("main", path.0.to_str())).unwrap();
+    init::create_directories(init::InitConfig::new("main", path.to_optional_path())).unwrap();
 
-    let got = branch::delete_branch(Some(&path.0), "nonexistent");
+    let got = branch::delete_branch(path.to_optional_path(), "nonexistent");
     assert!(got.is_err());
 }
 
@@ -19,9 +19,9 @@ fn delete_branch_fails_if_branch_does_not_exist() {
 fn delete_branch_fails_if_branch_is_current() {
     let path = common::TestPath::new();
 
-    init::create_directories(init::InitConfig::new("main", path.0.to_str())).unwrap();
+    init::create_directories(init::InitConfig::new("main", path.to_optional_path())).unwrap();
 
-    let got = branch::delete_branch(Some(&path.0), "main");
+    let got = branch::delete_branch(path.to_optional_path(), "main");
     assert!(got.is_err());
 }
 
@@ -29,7 +29,7 @@ fn delete_branch_fails_if_branch_is_current() {
 fn delete_branch_success() {
     let path = common::TestPath::new();
 
-    init::create_directories(init::InitConfig::new("main", path.0.to_str())).unwrap();
+    init::create_directories(init::InitConfig::new("main", path.to_optional_path())).unwrap();
 
     let tree_hash: [u8; 20] = [
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
@@ -40,9 +40,9 @@ fn delete_branch_success() {
     let update_path = PathBuf::from("abc/def/ghi");
 
     let config = update_refs::UpdateRefsConfig::new(&commit_hash, &update_path);
-    update_refs::update_refs(Some(&path.0), config).unwrap();
+    update_refs::update_refs(path.to_optional_path(), config).unwrap();
 
-    let got = branch::delete_branch(Some(&path.0), "abc/def/ghi");
+    let got = branch::delete_branch(path.to_optional_path(), "abc/def/ghi");
     assert!(got.is_ok());
 
     let ref_path = path.join(&"not-git/refs/heads/main");
@@ -53,7 +53,7 @@ fn delete_branch_success() {
 fn list_branches_lists_all_branches() {
     let path = common::TestPath::new();
 
-    init::create_directories(init::InitConfig::new("main", path.0.to_str())).unwrap();
+    init::create_directories(init::InitConfig::new("main", path.to_optional_path())).unwrap();
 
     let tree_hash: [u8; 20] = [
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
@@ -67,15 +67,15 @@ fn list_branches_lists_all_branches() {
     let ref_path_3 = PathBuf::from("jkl/mno/pqr");
 
     let config_1 = update_refs::UpdateRefsConfig::new(&commit_hash, &ref_path_1);
-    update_refs::update_refs(Some(&path.0), config_1).unwrap();
+    update_refs::update_refs(path.to_optional_path(), config_1).unwrap();
 
     let config_2 = update_refs::UpdateRefsConfig::new(&commit_hash, &ref_path_2);
-    update_refs::update_refs(Some(&path.0), config_2).unwrap();
+    update_refs::update_refs(path.to_optional_path(), config_2).unwrap();
 
     let config_3 = update_refs::UpdateRefsConfig::new(&commit_hash, &ref_path_3);
-    update_refs::update_refs(Some(&path.0), config_3).unwrap();
+    update_refs::update_refs(path.to_optional_path(), config_3).unwrap();
 
-    let branch_options = branch::list_branches(Some(&path.0), true).unwrap();
+    let branch_options = branch::list_branches(path.to_optional_path(), true).unwrap();
     assert_eq!(branch_options.branches.len(), 3);
     assert_eq!(
         branch_options.branches,
@@ -104,15 +104,15 @@ fn list_branches_fails_if_no_head_branch() {
     let ref_path_3 = PathBuf::from("jkl/mno/pqr");
 
     let config_1 = update_refs::UpdateRefsConfig::new(&commit_hash, &ref_path_1);
-    update_refs::update_refs(Some(&path.0), config_1).unwrap();
+    update_refs::update_refs(path.to_optional_path(), config_1).unwrap();
 
     let config_2 = update_refs::UpdateRefsConfig::new(&commit_hash, &ref_path_2);
-    update_refs::update_refs(Some(&path.0), config_2).unwrap();
+    update_refs::update_refs(path.to_optional_path(), config_2).unwrap();
 
     let config_3 = update_refs::UpdateRefsConfig::new(&commit_hash, &ref_path_3);
-    update_refs::update_refs(Some(&path.0), config_3).unwrap();
+    update_refs::update_refs(path.to_optional_path(), config_3).unwrap();
 
-    let branch_options = branch::list_branches(Some(&path.0), true);
+    let branch_options = branch::list_branches(path.to_optional_path(), true);
     assert!(branch_options.is_err());
 }
 
@@ -120,9 +120,9 @@ fn list_branches_fails_if_no_head_branch() {
 fn create_branch_fails_if_branch_already_exists() {
     let path = common::TestPath::new();
 
-    init::create_directories(init::InitConfig::new("main", path.0.to_str())).unwrap();
+    init::create_directories(init::InitConfig::new("main", path.to_optional_path())).unwrap();
 
-    let got = branch::create_branch(Some(&path.0), "main");
+    let got = branch::create_branch(path.to_optional_path(), "main");
     assert!(got.is_err());
 }
 
@@ -130,7 +130,7 @@ fn create_branch_fails_if_branch_already_exists() {
 fn create_branch_fails_if_no_head_branch() {
     let path = common::TestPath::new();
 
-    let got = branch::create_branch(Some(&path.0), "new/branch");
+    let got = branch::create_branch(path.to_optional_path(), "new/branch");
     assert!(got.is_err());
 }
 
@@ -138,7 +138,7 @@ fn create_branch_fails_if_no_head_branch() {
 fn create_branch_creates_new_branch() {
     let path = common::TestPath::new();
 
-    init::create_directories(init::InitConfig::new("main", path.0.to_str())).unwrap();
+    init::create_directories(init::InitConfig::new("main", path.to_optional_path())).unwrap();
 
     let tree_hash: [u8; 20] = [
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
@@ -149,9 +149,9 @@ fn create_branch_creates_new_branch() {
     let ref_path = PathBuf::from("main");
 
     let update_refs_config = update_refs::UpdateRefsConfig::new(&commit_hash, &ref_path);
-    update_refs::update_refs(Some(&path.0), update_refs_config).unwrap();
+    update_refs::update_refs(path.to_optional_path(), update_refs_config).unwrap();
 
-    let got = branch::create_branch(Some(&path.0), "new/branch");
+    let got = branch::create_branch(path.to_optional_path(), "new/branch");
     assert!(got.is_ok());
 
     let ref_path = path.join(&"not-git/refs/heads/new/branch");

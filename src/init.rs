@@ -2,23 +2,20 @@ use std::fs;
 use std::path::PathBuf;
 
 pub struct InitConfig<'a> {
+    path: Option<&'a PathBuf>,
     branch_name: &'a str,
-    directory: Option<&'a str>,
 }
 
 impl<'a> InitConfig<'a> {
-    pub fn new(branch_name: &'a str, directory: Option<&'a str>) -> Self {
-        InitConfig {
-            branch_name,
-            directory,
-        }
+    pub fn new(branch_name: &'a str, path: Option<&'a PathBuf>) -> Self {
+        InitConfig { path, branch_name }
     }
 }
 
 // TODO: Allow the parent directory to be customized
 pub fn create_directories(config: InitConfig) -> Result<(), anyhow::Error> {
-    let base_path: PathBuf = match config.directory {
-        Some(directory) => [directory, "not-git"].iter().collect(),
+    let base_path: PathBuf = match config.path {
+        Some(path) => path.join("not-git"),
         None => PathBuf::from("not-git"),
     };
 
