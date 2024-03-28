@@ -160,16 +160,15 @@ pub fn read_obj_offset_data(
     let position = current_position - negative_offset as u64;
     let object = objects
         .iter()
-        .find(|object| object.position as u64 == position);
+        .find(|object| object.position as u64 == position)
+        .ok_or_else(|| {
+            anyhow::anyhow!(format!(
+                "Unable to find object with position {} in packfile",
+                position
+            ))
+        })?;
 
-    if object.is_none() {
-        return Err(anyhow::anyhow!(format!(
-            "Unable to find object with position {} in packfile",
-            position
-        )));
-    }
-
-    compile_file_from_deltas(base_path, cursor, object.unwrap())
+    compile_file_from_deltas(base_path, cursor, object)
 }
 
 pub fn read_obj_ref_data(
@@ -185,16 +184,17 @@ pub fn read_obj_ref_data(
 
     let object = objects
         .iter()
-        .find(|object| object.file_hash.full_hash() == hash.full_hash());
+        .find(|object| object.file_hash.full_hash() == hash.full_hash())
+        .ok_or_else(|| {
+            anyhow::anyhow!(format!(
+                "Unable to find object with hash {} in packfile",
+                hash.full_hash()
+            ))
+        })?;
 
-    if object.is_none() {
-        return Err(anyhow::anyhow!(format!(
-            "Unable to find object with hash {} in packfile",
-            hash.full_hash()
-        )));
-    }
+    println!("OBJECT: {:?}", object);
 
-    compile_file_from_deltas(base_path, cursor, object.unwrap())
+    compile_file_from_deltas(base_path, cursor, object)
 }
 
 fn compile_file_from_deltas(
