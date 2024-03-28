@@ -9,8 +9,7 @@ use reqwest::blocking::Client;
 use reqwest::header::CONTENT_TYPE;
 
 use crate::objects::{ObjectHash, ObjectType};
-use crate::packfile;
-use crate::{checkout, init, update_refs};
+use crate::{checkout, init, packfile, update_refs};
 
 const TEMP_DIR: &str = ".tmp";
 

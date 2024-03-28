@@ -6,7 +6,7 @@ use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use hex::ToHex;
 use not_git::objects::{ObjectHash, ObjectType, TreeObject};
-use not_git::packfile::{CopyInstruction, DeltaInstruction, InsertInstruction, PackfileObject};
+use not_git::packfile::{CopyInstruction, DeltaInstruction, InsertInstruction, PackfileObjectType};
 use sha1::{Digest, Sha1};
 
 // TODO: Figure out why some functions are marked as not being used.
@@ -159,36 +159,186 @@ pub fn create_valid_tree_hash(path: &TestPath) -> ObjectHash {
 }
 
 #[allow(dead_code)]
-pub fn create_packfile_from_objects(_instructions: Vec<PackfileObject>) -> Vec<u8> {
-    todo!()
-}
-
-#[allow(dead_code)]
 pub fn create_discover_references_response() {
     todo!()
 }
 
 #[allow(dead_code)]
-pub fn create_packfile_header(num_instruction: usize) -> Vec<u8> {
+pub fn create_packfile_header(num_objects: usize) -> Vec<u8> {
     let mut header = vec![];
     header.extend(b"0008NAK\n");
     header.extend(b"PACK");
     header.extend(&[0, 0, 0, 2]);
-    header.extend(&(num_instruction as u32).to_be_bytes());
+    header.extend(&(num_objects as u32).to_be_bytes());
     header
+}
+
+const PACKFILE_OBJECT_SIZE: u8 = 0b0000_1111;
+
+// Since the object type size is never used in this project, we're going to short-cut
+// it and encode it as one single byte - the size isn't used to decipher the packfile
+#[allow(dead_code)]
+fn encode_packfile_type_to_byte(object_type: &PackfileObjectType) -> u8 {
+    // Byte should look like 0b0{type_bits}_1111
+    // The type bits will be a value between 1 and 7, which means it's up to a 3 bit value
+    // Somewhere between 0b001 and 0b111 so we can shift the value by 4 bits to the left
+    let mut byte: u8 = 0;
+
+    let packfile_type_bits: u8 = match object_type {
+        PackfileObjectType::Commit(_) => 1,
+        PackfileObjectType::Tree(_) => 2,
+        PackfileObjectType::Blob(_) => 3,
+        PackfileObjectType::Tag(_) => 4,
+        PackfileObjectType::OfsDelta(_) => 6,
+        PackfileObjectType::RefDelta(_) => 7,
+    };
+
+    byte |= packfile_type_bits << 4;
+    byte |= PACKFILE_OBJECT_SIZE;
+
+    byte
+}
+
+pub enum TestPackObject {
+    #[allow(dead_code)]
+    Undeltafied(UndeltafiedData),
+    #[allow(dead_code)]
+    OffsetDelta(OffsetDeltaData),
+    #[allow(dead_code)]
+    RefDelta(RefDeltaData),
+}
+
+impl RenderContent for TestPackObject {
+    fn render(&self) -> Vec<u8> {
+        match self {
+            TestPackObject::Undeltafied(data) => data.render(),
+            TestPackObject::OffsetDelta(data) => data.render(),
+            TestPackObject::RefDelta(data) => data.render(),
+        }
+    }
+}
+
+trait RenderContent {
+    fn render(&self) -> Vec<u8>;
+}
+
+pub struct UndeltafiedData {
+    pub content: Vec<u8>,
+}
+
+impl UndeltafiedData {
+    #[allow(dead_code)]
+    pub fn new(content: Vec<u8>) -> Self {
+        Self { content }
+    }
+}
+
+impl RenderContent for UndeltafiedData {
+    fn render(&self) -> Vec<u8> {
+        encode_to_zlib(&self.content)
+    }
+}
+
+pub struct OffsetDeltaData {
+    pub content: Vec<u8>,
+    pub instructions: Vec<DeltaInstruction>,
+    pub offset: usize,
+}
+
+impl OffsetDeltaData {
+    #[allow(dead_code)]
+    pub fn new(content: Vec<u8>, instructions: Vec<DeltaInstruction>, offset: usize) -> Self {
+        Self {
+            content,
+            instructions,
+            offset,
+        }
+    }
+}
+
+impl RenderContent for OffsetDeltaData {
+    fn render(&self) -> Vec<u8> {
+        let mut delta_bytes: Vec<u8> = vec![];
+
+        let offset_bytes = encode_varint_le(self.offset);
+        delta_bytes.extend(offset_bytes);
+
+        let rest_of_delta = render_delta_instructions_to_bytes(
+            self.content.as_slice(),
+            self.instructions.as_slice(),
+        );
+        delta_bytes.extend(rest_of_delta);
+
+        delta_bytes
+    }
+}
+
+pub struct RefDeltaData {
+    pub content: Vec<u8>,
+    pub instructions: Vec<DeltaInstruction>,
+    pub hash: ObjectHash,
+}
+
+impl RefDeltaData {
+    #[allow(dead_code)]
+    pub fn new(content: Vec<u8>, instructions: Vec<DeltaInstruction>, hash: ObjectHash) -> Self {
+        Self {
+            content,
+            instructions,
+            hash,
+        }
+    }
+}
+
+impl RenderContent for RefDeltaData {
+    fn render(&self) -> Vec<u8> {
+        let mut delta_bytes: Vec<u8> = vec![];
+
+        let hash_bytes = hex::decode(self.hash.full_hash()).unwrap();
+        delta_bytes.extend(hash_bytes);
+
+        let rest_of_delta = render_delta_instructions_to_bytes(
+            self.content.as_slice(),
+            self.instructions.as_slice(),
+        );
+        delta_bytes.extend(rest_of_delta);
+
+        delta_bytes
+    }
+}
+
+pub fn render_delta_instructions_to_bytes(
+    content: &[u8],
+    instructions: &[DeltaInstruction],
+) -> Vec<u8> {
+    let mut delta_bytes: Vec<u8> = vec![];
+
+    let source_size = content.len();
+    let (instruction_bytes, target_size) =
+        render_delta_instruction_bytes(source_size, instructions);
+
+    let source_size_varint = encode_varint_le(source_size);
+    delta_bytes.extend(source_size_varint);
+
+    let target_size_varint = encode_varint_le(target_size);
+    delta_bytes.extend(target_size_varint);
+
+    delta_bytes.extend(instruction_bytes);
+    delta_bytes.extend(content);
+
+    encode_to_zlib(delta_bytes.as_slice())
 }
 
 #[allow(dead_code)]
 pub fn render_delta_instruction_bytes(
-    source: Vec<u8>,
-    instructions: Vec<DeltaInstruction>,
-) -> Vec<u8> {
-    let mut target_size = source.len();
-
-    let mut instruction_bytes: Vec<u8> = vec![];
+    source_size: usize,
+    instructions: &[DeltaInstruction],
+) -> (Vec<u8>, usize) {
+    let mut target_size = source_size;
+    let mut total_instruction_bytes = vec![];
 
     for instruction in instructions {
-        let (mut instruction_bytes, size) = match instruction {
+        let (instruction_bytes, size) = match instruction {
             DeltaInstruction::Copy(copy_instruction) => {
                 render_copy_delta_instruction_bytes(copy_instruction)
             }
@@ -201,13 +351,14 @@ pub fn render_delta_instruction_bytes(
         };
 
         target_size += size;
+        total_instruction_bytes.extend(instruction_bytes);
     }
 
-    todo!()
+    (total_instruction_bytes, target_size)
 }
 
 #[allow(dead_code)]
-pub fn render_copy_delta_instruction_bytes(instruction: CopyInstruction) -> (Vec<u8>, usize) {
+pub fn render_copy_delta_instruction_bytes(instruction: &CopyInstruction) -> (Vec<u8>, usize) {
     if instruction.offset > 0xFFFFFFFF {
         panic!("Offset must be less than 2^32")
     }
@@ -256,7 +407,7 @@ pub fn render_copy_delta_instruction_bytes(instruction: CopyInstruction) -> (Vec
 }
 
 #[allow(dead_code)]
-pub fn render_insert_delta_instruction_bytes(instruction: InsertInstruction) -> (Vec<u8>, usize) {
+pub fn render_insert_delta_instruction_bytes(instruction: &InsertInstruction) -> (Vec<u8>, usize) {
     // If only copy instructions were this simple
     if instruction.size >= 128 {
         panic!("Size must be less than 128")
@@ -292,4 +443,19 @@ fn encode_varint_le(mut value: usize) -> Vec<u8> {
     }
 
     varint
+}
+
+#[allow(dead_code)]
+pub fn encode_pack_object(data: Vec<TestPackObject>) -> Vec<u8> {
+    let mut header = create_packfile_header(data.len());
+    let mut contents = data
+        .iter()
+        .map(|d| d.render())
+        .fold(Vec::new(), |mut acc, mut content| {
+            acc.append(&mut content);
+            acc
+        });
+
+    header.append(&mut contents);
+    header
 }

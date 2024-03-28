@@ -220,7 +220,10 @@ fn apply_deltas(target: &PackfileObject, delta_data: Vec<u8>) -> Result<Vec<u8>,
     let mut data = Vec::with_capacity(final_length);
 
     if source_length != target.size {
-        // TODO: Log inconsistent sizes
+        eprintln!(
+            "Warning: source length {} does not match target length {} in deltafied object",
+            source_length, target.size
+        )
     }
 
     loop {
