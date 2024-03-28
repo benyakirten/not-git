@@ -1,9 +1,12 @@
 use std::fs;
+use std::io::{Cursor, Read};
 
 use common::TestPath;
 
 use not_git::objects::ObjectType;
-use not_git::utils::{create_header, get_head_ref, split_header_from_contents};
+use not_git::utils::{
+    create_header, get_head_ref, read_next_zlib_data, split_header_from_contents,
+};
 
 mod common;
 
@@ -114,4 +117,43 @@ fn decode_file_error_not_encoded() {
 
     let decoded = not_git::utils::decode_file(file_path);
     assert!(decoded.is_err());
+}
+
+#[test]
+fn read_next_zlib_data_success() {
+    let mut data = vec![];
+
+    let unencoded_data = b"This is the encoded part";
+    let encoded_data = common::encode_to_zlib(unencoded_data);
+    data.extend(&encoded_data);
+
+    let metadata = b"This is the second metadata";
+    data.extend(metadata);
+
+    let mut cursor = Cursor::new(data.as_slice());
+
+    let decoded_data = read_next_zlib_data(&mut cursor).unwrap();
+    assert_eq!(decoded_data, unencoded_data);
+
+    assert_eq!(cursor.position(), encoded_data.len() as u64);
+
+    let mut rest = vec![];
+    cursor.read_to_end(&mut rest).unwrap();
+
+    assert_eq!(rest, metadata);
+}
+
+#[test]
+fn read_next_zlib_data_fail_if_not_zlib_encoded() {
+    let mut data = vec![];
+
+    let unencoded_data = b"This is the encoded part";
+    data.extend(unencoded_data);
+
+    let metadata = b"This is the second metadata";
+    data.extend(metadata);
+
+    let mut cursor = Cursor::new(data.as_slice());
+    let result = read_next_zlib_data(&mut cursor);
+    assert!(result.is_err());
 }
