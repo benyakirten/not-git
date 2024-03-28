@@ -430,7 +430,7 @@ pub fn render_insert_delta_instruction_bytes(
 
 pub fn encode_to_zlib(contents: &[u8]) -> Vec<u8> {
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-    encoder.write_all(&contents).unwrap();
+    encoder.write_all(contents).unwrap();
     encoder.finish().unwrap()
 }
 

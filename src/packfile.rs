@@ -486,11 +486,11 @@ mod tests {
 
         let (got, more_bytes) = super::read_varint_byte(&mut cursor).unwrap();
         assert_eq!(got, 0b0000_0001);
-        assert_eq!(more_bytes, false);
+        assert!(!more_bytes);
 
         let (got, more_bytes) = super::read_varint_byte(&mut cursor).unwrap();
         assert_eq!(got, 0b0001_0000);
-        assert_eq!(more_bytes, true);
+        assert!(more_bytes);
     }
 
     #[test]
