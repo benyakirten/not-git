@@ -39,12 +39,14 @@ pub struct PackfileObject {
     pub file_type: ObjectType,
 }
 
+#[derive(Debug)]
 pub enum DeltaInstruction {
     Copy(CopyInstruction),
     Insert(InsertInstruction),
     End,
 }
 
+#[derive(Debug)]
 pub struct CopyInstruction {
     // Offset of the first byte to copy.
     pub offset: usize,
@@ -52,6 +54,7 @@ pub struct CopyInstruction {
     pub size: usize,
 }
 
+#[derive(Debug)]
 pub struct InsertInstruction {
     // Number of bytes to copy from delta data to the target data
     pub size: u8,
@@ -228,6 +231,7 @@ fn apply_deltas(target: &PackfileObject, delta_data: Vec<u8>) -> Result<Vec<u8>,
 
     loop {
         let instruction = read_instruction(&mut cursor)?;
+        println!("INSTRUCTION: {:?}", instruction);
         let new_data = match instruction {
             DeltaInstruction::Insert(instruction) => {
                 apply_insert_instruction(&mut cursor, instruction.size as usize)?
@@ -241,13 +245,14 @@ fn apply_deltas(target: &PackfileObject, delta_data: Vec<u8>) -> Result<Vec<u8>,
         data.extend(new_data);
     }
 
+    println!("GOT HERE");
     Ok(data)
 }
 
 fn read_instruction(cursor: &mut Cursor<&[u8]>) -> Result<DeltaInstruction, anyhow::Error> {
     let mut byte = match read_byte(cursor) {
         Ok(byte) => byte,
-        // We have finihed reading instructions when we get to the EOF
+        // We have finished reading instructions when we get to the EOF
         Err(e) if e.kind() == ErrorKind::UnexpectedEof => return Ok(DeltaInstruction::End),
         Err(e) => return Err(e.into()),
     };
@@ -338,8 +343,11 @@ fn apply_insert_instruction(
     cursor: &mut Cursor<&[u8]>,
     size: usize,
 ) -> Result<Vec<u8>, anyhow::Error> {
+    println!("APPLY INSERT INSTRUCTION");
     let mut data = vec![0; size];
     cursor.read_exact(&mut data)?;
+
+    println!("DATA: {:?}", data);
 
     Ok(data)
 }

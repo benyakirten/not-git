@@ -6,7 +6,9 @@ use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use hex::ToHex;
 use not_git::objects::{ObjectHash, ObjectType, TreeObject};
-use not_git::packfile::{CopyInstruction, DeltaInstruction, InsertInstruction, PackfileObjectType};
+use not_git::packfile::{
+    CopyInstruction, DeltaInstruction, InsertInstruction, PackfileObject, PackfileObjectType,
+};
 use sha1::{Digest, Sha1};
 
 // TODO: Figure out why some functions are marked as not being used.
@@ -201,7 +203,7 @@ fn encode_packfile_type_to_byte(object_type: &PackfileObjectType) -> u8 {
 
 pub enum TestPackObject {
     #[allow(dead_code)]
-    Undeltafied(UndeltafiedData),
+    Undeltified(UndeltifiedData),
     #[allow(dead_code)]
     OffsetDelta(OffsetDeltaData),
     #[allow(dead_code)]
@@ -211,29 +213,29 @@ pub enum TestPackObject {
 impl RenderContent for TestPackObject {
     fn render(&self) -> Vec<u8> {
         match self {
-            TestPackObject::Undeltafied(data) => data.render(),
+            TestPackObject::Undeltified(data) => data.render(),
             TestPackObject::OffsetDelta(data) => data.render(),
             TestPackObject::RefDelta(data) => data.render(),
         }
     }
 }
 
-trait RenderContent {
+pub trait RenderContent {
     fn render(&self) -> Vec<u8>;
 }
 
-pub struct UndeltafiedData {
+pub struct UndeltifiedData {
     pub content: Vec<u8>,
 }
 
-impl UndeltafiedData {
+impl UndeltifiedData {
     #[allow(dead_code)]
     pub fn new(content: Vec<u8>) -> Self {
         Self { content }
     }
 }
 
-impl RenderContent for UndeltafiedData {
+impl RenderContent for UndeltifiedData {
     fn render(&self) -> Vec<u8> {
         encode_to_zlib(&self.content)
     }
@@ -263,7 +265,7 @@ impl RenderContent for OffsetDeltaData {
         let offset_bytes = encode_varint_le(self.offset);
         delta_bytes.extend(offset_bytes);
 
-        let rest_of_delta = render_delta_instructions_to_bytes(
+        let rest_of_delta = render_delta_instructions_to_zlib_encoded_bytes(
             self.content.as_slice(),
             self.instructions.as_slice(),
         );
@@ -297,7 +299,7 @@ impl RenderContent for RefDeltaData {
         let hash_bytes = hex::decode(self.hash.full_hash()).unwrap();
         delta_bytes.extend(hash_bytes);
 
-        let rest_of_delta = render_delta_instructions_to_bytes(
+        let rest_of_delta = render_delta_instructions_to_zlib_encoded_bytes(
             self.content.as_slice(),
             self.instructions.as_slice(),
         );
@@ -307,13 +309,14 @@ impl RenderContent for RefDeltaData {
     }
 }
 
-pub fn render_delta_instructions_to_bytes(
+pub fn render_delta_instructions_to_zlib_encoded_bytes(
     content: &[u8],
     instructions: &[DeltaInstruction],
 ) -> Vec<u8> {
+    let source_size = 10;
+
     let mut delta_bytes: Vec<u8> = vec![];
 
-    let source_size = content.len();
     let (instruction_bytes, target_size) =
         render_delta_instruction_bytes(source_size, instructions);
 
@@ -324,9 +327,12 @@ pub fn render_delta_instructions_to_bytes(
     delta_bytes.extend(target_size_varint);
 
     delta_bytes.extend(instruction_bytes);
-    delta_bytes.extend(content);
+    let mut delta_bytes = encode_to_zlib(delta_bytes.as_slice());
 
-    encode_to_zlib(delta_bytes.as_slice())
+    let encoded_content = encode_to_zlib(content);
+    delta_bytes.extend(encoded_content);
+
+    delta_bytes
 }
 
 #[allow(dead_code)]
@@ -382,8 +388,11 @@ pub fn render_copy_delta_instruction_bytes(instruction: &CopyInstruction) -> (Ve
     // you read corresponds to the first byte of the offset, the second byte the third byte of the offset
     // the intermediate byte will be `0b0000_0000`. So if you have the size bytes as `0b1010_1010 0b0101_0101`
     // then the final value of the offset will be `0b0000_0000 0b1010_1010 0b0000_0000 0b0101_0101`
-    let mut total_bytes = instruction.offset.to_be_bytes().to_vec();
-    let size_bytes = instruction.size.to_be_bytes().to_vec();
+    let offset = instruction.offset as u32;
+    let size = instruction.size as u32;
+
+    let mut total_bytes = offset.to_le_bytes().to_vec();
+    let size_bytes = size.to_le_bytes().to_vec();
     total_bytes.extend(size_bytes);
 
     for (index, &byte) in total_bytes.iter().enumerate() {
@@ -395,7 +404,7 @@ pub fn render_copy_delta_instruction_bytes(instruction: &CopyInstruction) -> (Ve
         };
 
         // Shift the bit to the left based on how far we've progressed through the bytes
-        // As we progress further, we will shift further, meaning that if
+        // As we progress further, we will shift further.
         bit_validity <<= index;
         leading_byte |= bit_validity;
     }
@@ -458,4 +467,16 @@ pub fn encode_pack_object(data: Vec<TestPackObject>) -> Vec<u8> {
 
     header.append(&mut contents);
     header
+}
+
+#[allow(dead_code)]
+pub fn packfile_file_object() -> PackfileObject {
+    PackfileObject {
+        object_type: PackfileObjectType::Blob(10),
+        size: 10,
+        data: b"Hello, world!".to_vec(),
+        position: 20,
+        file_hash: ObjectHash::new("0123456789abcdef0123456789abcdef01234567").unwrap(),
+        file_type: ObjectType::Blob,
+    }
 }
