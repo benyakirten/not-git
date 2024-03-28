@@ -504,15 +504,15 @@ mod tests {
     fn keep_bit_keeps_bit_from_right() {
         let value = 0b1111_1010;
         let bits = 4;
-        let want = super::keep_bits(value, bits);
-        assert_eq!(want, 0b1010);
+        let got = super::keep_bits(value, bits);
+        assert_eq!(got, 0b1010);
     }
 
     #[test]
     fn get_object_type_bits() {
         let value = 0b1110_1010;
-        let want = super::get_object_type_bits(value);
-        assert_eq!(want, 0b110);
+        let got = super::get_object_type_bits(value);
+        assert_eq!(got, 0b110);
     }
 
     #[test]
@@ -520,8 +520,8 @@ mod tests {
         let data = vec![0b0000_0001, 0b1001_0000];
         let mut cursor = Cursor::new(data.as_slice());
 
-        let want = super::apply_insert_instruction(&mut cursor, 2).unwrap();
-        assert_eq!(want, vec![0b0000_0001, 0b1001_0000]);
+        let got = super::apply_insert_instruction(&mut cursor, 2).unwrap();
+        assert_eq!(got, vec![0b0000_0001, 0b1001_0000]);
     }
 
     #[test]
@@ -529,8 +529,8 @@ mod tests {
         let data = vec![0b0000_0001, 0b1001_0000];
         let mut cursor = Cursor::new(data.as_slice());
 
-        let want = super::apply_insert_instruction(&mut cursor, 3);
-        assert!(want.is_err());
+        let got = super::apply_insert_instruction(&mut cursor, 3);
+        assert!(got.is_err());
     }
 
     #[test]
@@ -555,7 +555,25 @@ mod tests {
             file_type: ObjectType::Blob,
         };
 
-        let want = apply_copy_instruction(&object, offset, size).unwrap();
-        assert_eq!(want, vec![0b1111_1101, 0b1111_1100, 0b1111_1011]);
+        let got = apply_copy_instruction(&object, offset, size).unwrap();
+        assert_eq!(got, vec![0b1111_1101, 0b1111_1100, 0b1111_1011]);
+    }
+
+    #[test]
+    fn apply_copy_instruction_error_if_not_enough_data() {
+        let offset = 2;
+        let size = 3;
+        let data = vec![0b1111_1111];
+        let object = PackfileObject {
+            object_type: super::PackfileObjectType::Blob(7),
+            size: 7,
+            data,
+            position: 0,
+            file_hash: ObjectHash::new("0123456789abcdef0123456789abcdef01234567").unwrap(),
+            file_type: ObjectType::Blob,
+        };
+
+        let got = apply_copy_instruction(&object, offset, size);
+        assert!(got.is_err());
     }
 }
