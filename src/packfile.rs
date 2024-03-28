@@ -231,7 +231,6 @@ fn apply_deltas(target: &PackfileObject, delta_data: Vec<u8>) -> Result<Vec<u8>,
 
     loop {
         let instruction = read_instruction(&mut cursor)?;
-        println!("INSTRUCTION: {:?}", instruction);
         let new_data = match instruction {
             DeltaInstruction::Insert(instruction) => {
                 apply_insert_instruction(&mut cursor, instruction.size as usize)?
@@ -245,7 +244,6 @@ fn apply_deltas(target: &PackfileObject, delta_data: Vec<u8>) -> Result<Vec<u8>,
         data.extend(new_data);
     }
 
-    println!("GOT HERE");
     Ok(data)
 }
 
@@ -343,11 +341,8 @@ fn apply_insert_instruction(
     cursor: &mut Cursor<&[u8]>,
     size: usize,
 ) -> Result<Vec<u8>, anyhow::Error> {
-    println!("APPLY INSERT INSTRUCTION");
     let mut data = vec![0; size];
     cursor.read_exact(&mut data)?;
-
-    println!("DATA: {:?}", data);
 
     Ok(data)
 }
@@ -509,7 +504,7 @@ mod tests {
     }
 
     #[test]
-    fn keep_bit_keeps_bit_from_right() {
+    fn keep_bit_gets_bit_from_right() {
         let value = 0b1111_1010;
         let bits = 4;
         let got = super::keep_bits(value, bits);

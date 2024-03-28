@@ -1,15 +1,10 @@
 use std::io::Cursor;
 
-use common::RenderContent;
-use not_git::{
-    objects::{ObjectFile, ObjectHash, ObjectType},
-    packfile::{
-        self, CopyInstruction, DeltaInstruction, InsertInstruction, PackfileObject,
-        PackfileObjectType,
-    },
-};
+use not_git::objects::{ObjectFile, ObjectType};
+use not_git::packfile;
 
 mod common;
+use common::RenderContent;
 
 #[test]
 fn decode_undeltified_data_creates_object_from_zlib_compressed_data() {
@@ -63,17 +58,17 @@ fn read_obj_offset_data_creates_new_object_file() {
     let packfile_objects = vec![packfile_object];
     let packfile_objects = packfile_objects.as_slice();
 
-    let copy_instruction = CopyInstruction { offset: 3, size: 5 };
-    let insert_instruction = InsertInstruction { size: 4 };
+    let copy_instruction = common::TestCopyInstruction { offset: 3, size: 5 };
+    let insert_instruction = common::TestInsertInstruction {
+        content: b"testcontent".to_vec(),
+    };
 
     let instructions = vec![
-        DeltaInstruction::Copy(copy_instruction),
-        DeltaInstruction::Insert(insert_instruction),
+        common::TestDeltaInstruction::Copy(copy_instruction),
+        common::TestDeltaInstruction::Insert(insert_instruction),
     ];
 
-    let delta_data = b"abcdefghijklmnopqrstuvwxyz".to_vec();
-
-    let offset_instruction = common::OffsetDeltaData::new(delta_data, instructions, 10);
+    let offset_instruction = common::OffsetDeltaData::new(instructions, 10);
 
     let mut data = b"123456789012345678901234567890".to_vec();
     data.extend(offset_instruction.render());
@@ -81,5 +76,19 @@ fn read_obj_offset_data_creates_new_object_file() {
     let mut cursor = Cursor::new(data.as_slice());
     cursor.set_position(30);
 
-    let got = packfile::read_obj_offset_data(&path.0, packfile_objects, &mut cursor).unwrap();
+    let (content, hash, object_type) =
+        packfile::read_obj_offset_data(&path.0, packfile_objects, &mut cursor).unwrap();
+
+    let content = String::from_utf8(content).unwrap();
+    assert_eq!(content, "lo, wtestcontent");
+    assert_eq!(object_type, ObjectType::Blob);
+    let object_file = ObjectFile::new(path.to_optional_path(), &hash).unwrap();
+    match object_file {
+        ObjectFile::Other(contents) => {
+            assert_eq!(contents.contents, content.as_bytes());
+            assert_eq!(contents.size, content.len());
+            assert_eq!(contents.object_type, ObjectType::Blob);
+        }
+        _ => panic!("Expected ObjectFile::Other"),
+    };
 }

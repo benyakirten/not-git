@@ -6,9 +6,7 @@ use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use hex::ToHex;
 use not_git::objects::{ObjectHash, ObjectType, TreeObject};
-use not_git::packfile::{
-    CopyInstruction, DeltaInstruction, InsertInstruction, PackfileObject, PackfileObjectType,
-};
+use not_git::packfile::{CopyInstruction, InsertInstruction, PackfileObject, PackfileObjectType};
 use sha1::{Digest, Sha1};
 
 // TODO: Figure out why some functions are marked as not being used.
@@ -241,17 +239,29 @@ impl RenderContent for UndeltifiedData {
     }
 }
 
-pub struct OffsetDeltaData {
+pub enum TestDeltaInstruction {
+    Copy(TestCopyInstruction),
+    Insert(TestInsertInstruction),
+}
+
+pub struct TestCopyInstruction {
+    pub offset: usize,
+    pub size: usize,
+}
+
+pub struct TestInsertInstruction {
     pub content: Vec<u8>,
-    pub instructions: Vec<DeltaInstruction>,
+}
+
+pub struct OffsetDeltaData {
+    pub instructions: Vec<TestDeltaInstruction>,
     pub offset: usize,
 }
 
 impl OffsetDeltaData {
     #[allow(dead_code)]
-    pub fn new(content: Vec<u8>, instructions: Vec<DeltaInstruction>, offset: usize) -> Self {
+    pub fn new(instructions: Vec<TestDeltaInstruction>, offset: usize) -> Self {
         Self {
-            content,
             instructions,
             offset,
         }
@@ -265,10 +275,8 @@ impl RenderContent for OffsetDeltaData {
         let offset_bytes = encode_varint_le(self.offset);
         delta_bytes.extend(offset_bytes);
 
-        let rest_of_delta = render_delta_instructions_to_zlib_encoded_bytes(
-            self.content.as_slice(),
-            self.instructions.as_slice(),
-        );
+        let rest_of_delta =
+            render_delta_instructions_to_zlib_encoded_bytes(self.instructions.as_slice());
         delta_bytes.extend(rest_of_delta);
 
         delta_bytes
@@ -277,13 +285,17 @@ impl RenderContent for OffsetDeltaData {
 
 pub struct RefDeltaData {
     pub content: Vec<u8>,
-    pub instructions: Vec<DeltaInstruction>,
+    pub instructions: Vec<TestDeltaInstruction>,
     pub hash: ObjectHash,
 }
 
 impl RefDeltaData {
     #[allow(dead_code)]
-    pub fn new(content: Vec<u8>, instructions: Vec<DeltaInstruction>, hash: ObjectHash) -> Self {
+    pub fn new(
+        content: Vec<u8>,
+        instructions: Vec<TestDeltaInstruction>,
+        hash: ObjectHash,
+    ) -> Self {
         Self {
             content,
             instructions,
@@ -299,10 +311,8 @@ impl RenderContent for RefDeltaData {
         let hash_bytes = hex::decode(self.hash.full_hash()).unwrap();
         delta_bytes.extend(hash_bytes);
 
-        let rest_of_delta = render_delta_instructions_to_zlib_encoded_bytes(
-            self.content.as_slice(),
-            self.instructions.as_slice(),
-        );
+        let rest_of_delta =
+            render_delta_instructions_to_zlib_encoded_bytes(self.instructions.as_slice());
         delta_bytes.extend(rest_of_delta);
 
         delta_bytes
@@ -310,8 +320,7 @@ impl RenderContent for RefDeltaData {
 }
 
 pub fn render_delta_instructions_to_zlib_encoded_bytes(
-    content: &[u8],
-    instructions: &[DeltaInstruction],
+    instructions: &[TestDeltaInstruction],
 ) -> Vec<u8> {
     let source_size = 10;
 
@@ -327,32 +336,25 @@ pub fn render_delta_instructions_to_zlib_encoded_bytes(
     delta_bytes.extend(target_size_varint);
 
     delta_bytes.extend(instruction_bytes);
-    let mut delta_bytes = encode_to_zlib(delta_bytes.as_slice());
 
-    let encoded_content = encode_to_zlib(content);
-    delta_bytes.extend(encoded_content);
-
-    delta_bytes
+    encode_to_zlib(delta_bytes.as_slice())
 }
 
 #[allow(dead_code)]
 pub fn render_delta_instruction_bytes(
     source_size: usize,
-    instructions: &[DeltaInstruction],
+    instructions: &[TestDeltaInstruction],
 ) -> (Vec<u8>, usize) {
     let mut target_size = source_size;
     let mut total_instruction_bytes = vec![];
 
     for instruction in instructions {
         let (instruction_bytes, size) = match instruction {
-            DeltaInstruction::Copy(copy_instruction) => {
+            TestDeltaInstruction::Copy(copy_instruction) => {
                 render_copy_delta_instruction_bytes(copy_instruction)
             }
-            DeltaInstruction::Insert(insert_instruction) => {
+            TestDeltaInstruction::Insert(insert_instruction) => {
                 render_insert_delta_instruction_bytes(insert_instruction)
-            }
-            _ => {
-                panic!("DeltaInstruction::End not supported. The cycle will end when the last instruction is reached.")
             }
         };
 
@@ -364,7 +366,7 @@ pub fn render_delta_instruction_bytes(
 }
 
 #[allow(dead_code)]
-pub fn render_copy_delta_instruction_bytes(instruction: &CopyInstruction) -> (Vec<u8>, usize) {
+pub fn render_copy_delta_instruction_bytes(instruction: &TestCopyInstruction) -> (Vec<u8>, usize) {
     if instruction.offset > 0xFFFFFFFF {
         panic!("Offset must be less than 2^32")
     }
@@ -416,13 +418,19 @@ pub fn render_copy_delta_instruction_bytes(instruction: &CopyInstruction) -> (Ve
 }
 
 #[allow(dead_code)]
-pub fn render_insert_delta_instruction_bytes(instruction: &InsertInstruction) -> (Vec<u8>, usize) {
+pub fn render_insert_delta_instruction_bytes(
+    instruction: &TestInsertInstruction,
+) -> (Vec<u8>, usize) {
     // If only copy instructions were this simple
-    if instruction.size >= 128 {
+    let size = instruction.content.len();
+    if size >= 128 {
         panic!("Size must be less than 128")
     }
 
-    (vec![instruction.size], instruction.size as usize)
+    let mut bytes = vec![size as u8];
+    bytes.extend(instruction.content.clone());
+
+    (bytes, size)
 }
 
 pub fn encode_to_zlib(contents: &[u8]) -> Vec<u8> {
