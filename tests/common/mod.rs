@@ -6,7 +6,7 @@ use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use hex::ToHex;
 use not_git::objects::{ObjectHash, ObjectType, TreeObject};
-use not_git::packfile::{CopyInstruction, InsertInstruction, PackfileObject, PackfileObjectType};
+use not_git::packfile::{PackfileObject, PackfileObjectType};
 use sha1::{Digest, Sha1};
 
 // TODO: Figure out why some functions are marked as not being used.
@@ -240,7 +240,9 @@ impl RenderContent for UndeltifiedData {
 }
 
 pub enum TestDeltaInstruction {
+    #[allow(dead_code)]
     Copy(TestCopyInstruction),
+    #[allow(dead_code)]
     Insert(TestInsertInstruction),
 }
 
@@ -277,6 +279,7 @@ impl RenderContent for OffsetDeltaData {
 
         let rest_of_delta =
             render_delta_instructions_to_zlib_encoded_bytes(self.instructions.as_slice());
+
         delta_bytes.extend(rest_of_delta);
 
         delta_bytes
@@ -284,23 +287,14 @@ impl RenderContent for OffsetDeltaData {
 }
 
 pub struct RefDeltaData {
-    pub content: Vec<u8>,
     pub instructions: Vec<TestDeltaInstruction>,
     pub hash: ObjectHash,
 }
 
 impl RefDeltaData {
     #[allow(dead_code)]
-    pub fn new(
-        content: Vec<u8>,
-        instructions: Vec<TestDeltaInstruction>,
-        hash: ObjectHash,
-    ) -> Self {
-        Self {
-            content,
-            instructions,
-            hash,
-        }
+    pub fn new(instructions: Vec<TestDeltaInstruction>, hash: ObjectHash) -> Self {
+        Self { instructions, hash }
     }
 }
 
@@ -313,6 +307,7 @@ impl RenderContent for RefDeltaData {
 
         let rest_of_delta =
             render_delta_instructions_to_zlib_encoded_bytes(self.instructions.as_slice());
+
         delta_bytes.extend(rest_of_delta);
 
         delta_bytes
