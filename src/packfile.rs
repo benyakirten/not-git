@@ -192,8 +192,6 @@ pub fn read_obj_ref_data(
             ))
         })?;
 
-    println!("OBJECT: {:?}", object);
-
     compile_file_from_deltas(base_path, cursor, object)
 }
 
@@ -217,17 +215,10 @@ fn compile_file_from_deltas(
 fn apply_deltas(target: &PackfileObject, delta_data: Vec<u8>) -> Result<Vec<u8>, anyhow::Error> {
     let mut cursor = Cursor::new(delta_data.as_slice());
 
-    let source_length = read_varint_bytes_le(&mut cursor)?;
+    let _source_length = read_varint_bytes_le(&mut cursor)?;
     let final_length = read_varint_bytes_le(&mut cursor)?;
 
     let mut data = Vec::with_capacity(final_length);
-
-    if source_length != target.size {
-        eprintln!(
-            "Warning: source length {} does not match target length {} in deltafied object",
-            source_length, target.size
-        )
-    }
 
     loop {
         let instruction = read_instruction(&mut cursor)?;

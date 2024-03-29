@@ -48,10 +48,7 @@ impl GitRef {
 pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_clone_config(args)?;
 
-    let test_base_path = &PathBuf::from("cool/there");
-    let test_base_path = Some(test_base_path); // For testing - this should be None
-
-    let (head_ref, objects) = perform_clone(test_base_path, config)?;
+    let (head_ref, objects) = perform_clone(None, config)?;
 
     println!(
         "Cloned {} objects into repository successfully.",
