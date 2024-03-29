@@ -31,12 +31,12 @@ pub struct PackfileHeader {
 
 #[derive(Debug)]
 pub struct PackfileObject {
-    pub object_type: PackfileObjectType,
+    pub packfile_object_type: PackfileObjectType,
     pub size: usize,
     pub data: Vec<u8>,
     pub position: usize,
     pub file_hash: ObjectHash,
-    pub file_type: ObjectType,
+    pub object_type: ObjectType,
 }
 
 #[derive(Debug)]
@@ -205,11 +205,11 @@ fn compile_file_from_deltas(
 
     let hash = hash_object::hash_and_write_object(
         Some(base_path),
-        &object.file_type,
+        &object.object_type,
         &mut file_contents.clone(),
     )?;
 
-    Ok((file_contents, hash, object.file_type.clone()))
+    Ok((file_contents, hash, object.object_type.clone()))
 }
 
 fn apply_deltas(target: &PackfileObject, delta_data: Vec<u8>) -> Result<Vec<u8>, anyhow::Error> {
@@ -541,12 +541,12 @@ mod tests {
             0b1111_1001,
         ];
         let object = PackfileObject {
-            object_type: super::PackfileObjectType::Blob(7),
+            packfile_object_type: super::PackfileObjectType::Blob(7),
             size: 7,
             data,
             position: 0,
             file_hash: ObjectHash::new("0123456789abcdef0123456789abcdef01234567").unwrap(),
-            file_type: ObjectType::Blob,
+            object_type: ObjectType::Blob,
         };
 
         let got = apply_copy_instruction(&object, offset, size).unwrap();
@@ -559,12 +559,12 @@ mod tests {
         let size = 3;
         let data = vec![0b1111_1111];
         let object = PackfileObject {
-            object_type: super::PackfileObjectType::Blob(7),
+            packfile_object_type: super::PackfileObjectType::Blob(7),
             size: 7,
             data,
             position: 0,
             file_hash: ObjectHash::new("0123456789abcdef0123456789abcdef01234567").unwrap(),
-            file_type: ObjectType::Blob,
+            object_type: ObjectType::Blob,
         };
 
         let got = apply_copy_instruction(&object, offset, size);

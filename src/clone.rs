@@ -184,9 +184,9 @@ pub fn download_commit(
 
     for _ in 0..header.num_objects {
         let position = cursor.position() as usize;
-        let object_type = packfile::read_type_and_length(&mut cursor)?;
+        let packfile_object_type = packfile::read_type_and_length(&mut cursor)?;
 
-        let ((data, file_hash, file_type), size) = match object_type {
+        let ((data, file_hash, object_type), size) = match packfile_object_type {
             packfile::PackfileObjectType::Commit(size) => (
                 packfile::decode_undeltified_data(base_path, ObjectType::Commit, &mut cursor)?,
                 size,
@@ -215,11 +215,11 @@ pub fn download_commit(
 
         let object = packfile::PackfileObject {
             position,
-            object_type,
+            packfile_object_type,
             data,
             size,
             file_hash,
-            file_type,
+            object_type,
         };
 
         // Though we need to look up values by an exact value, until we get to 50k+ objects,
