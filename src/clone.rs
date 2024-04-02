@@ -182,9 +182,16 @@ pub fn download_commit(
     let mut objects: Vec<packfile::PackfileObject> = vec![];
     let mut cursor = Cursor::new(&commit[20..]);
 
-    for _ in 0..header.num_objects {
+    for index in 0..header.num_objects {
         let position = cursor.position() as usize;
         let packfile_object_type = packfile::read_type_and_length(&mut cursor)?;
+
+        println!(
+            "Parsing object #{} of {}: {}",
+            index,
+            header.num_objects,
+            packfile_object_type.name()
+        );
 
         let ((data, file_hash, object_type), size) = match packfile_object_type {
             packfile::PackfileObjectType::Commit(size) => (
