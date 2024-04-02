@@ -48,10 +48,7 @@ impl GitRef {
 pub fn clone_command(args: &[String]) -> Result<(), anyhow::Error> {
     let config = parse_clone_config(args)?;
 
-    let test_base_path = &PathBuf::from("cool/there");
-    let test_base_path = Some(test_base_path); // For testing - this should be None
-
-    let (head_ref, objects) = perform_clone(test_base_path, config)?;
+    let (head_ref, objects) = perform_clone(None, config)?;
 
     println!(
         "Cloned {} objects into repository successfully.",
@@ -185,11 +182,18 @@ pub fn download_commit(
     let mut objects: Vec<packfile::PackfileObject> = vec![];
     let mut cursor = Cursor::new(&commit[20..]);
 
-    for _ in 0..header.num_objects {
+    for index in 0..header.num_objects {
         let position = cursor.position() as usize;
-        let object_type = packfile::read_type_and_length(&mut cursor)?;
+        let packfile_object_type = packfile::read_type_and_length(&mut cursor)?;
 
-        let ((data, file_hash, file_type), size) = match object_type {
+        println!(
+            "Parsing object #{} of {}: {}",
+            index,
+            header.num_objects,
+            packfile_object_type.name()
+        );
+
+        let ((data, file_hash, object_type), size) = match packfile_object_type {
             packfile::PackfileObjectType::Commit(size) => (
                 packfile::decode_undeltified_data(base_path, ObjectType::Commit, &mut cursor)?,
                 size,
@@ -218,11 +222,11 @@ pub fn download_commit(
 
         let object = packfile::PackfileObject {
             position,
-            object_type,
+            packfile_object_type,
             data,
             size,
             file_hash,
-            file_type,
+            object_type,
         };
 
         // Though we need to look up values by an exact value, until we get to 50k+ objects,

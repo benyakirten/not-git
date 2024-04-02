@@ -475,11 +475,11 @@ pub fn encode_pack_object(data: Vec<TestPackObject>) -> Vec<u8> {
 #[allow(dead_code)]
 pub fn packfile_file_object() -> PackfileObject {
     PackfileObject {
-        object_type: PackfileObjectType::Blob(10),
+        packfile_object_type: PackfileObjectType::Blob(10),
         size: 10,
         data: b"Hello, world!".to_vec(),
         position: 20,
         file_hash: ObjectHash::new("0123456789abcdef0123456789abcdef01234567").unwrap(),
-        file_type: ObjectType::Blob,
+        object_type: ObjectType::Blob,
     }
 }
